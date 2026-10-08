@@ -82,6 +82,14 @@ def mutate(payload):
             before=next((a for a in all_assets if a['id']==aid),None)
             if not before: raise ValueError('자산이 없습니다.')
             division=before['division']; row=before['row']
+            action=payload.get('action','')
+            if action not in ('','수거','사용자 변경','사용자 확인'): raise ValueError('작업 유형이 올바르지 않습니다.')
+            payload={**before,**payload}
+            if action=='수거': payload.update(user='',uid='',status='보관')
+            if action=='사용자 변경':
+                if not str(payload.get('user','')).strip() and not str(payload.get('uid','')).strip(): raise ValueError('새 사용자를 입력하세요.')
+                payload['status']='사용'
+            if action=='사용자 확인' and not before['user']: raise ValueError('현재 배정된 사용자가 없습니다.')
         else:
             division=payload.get('division')
             if division not in CONFIG: raise ValueError('사업부를 선택하세요.')
@@ -109,7 +117,7 @@ def mutate(payload):
         s[f'{grade}{row}']=f'=IF({date}{row}="","",IF(DATEDIF({date}{row},TODAY(),"Y")>=10,"D",IF(DATEDIF({date}{row},TODAY(),"Y")>=5,"C",IF(DATEDIF({date}{row},TODAY(),"Y")>=3,"B","A"))))'
         s[f'AZ{row}']=aid;literal(s[f'BA{row}'],uid)
         after=next(a for a in assets(w) if a['id']==aid)
-        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),aid,'수정' if before else '등록',json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False)])
+        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),aid,payload.get('action') or ('수정' if before else '등록'),json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False)])
         save(w,old)
         return {'id':aid}
 
