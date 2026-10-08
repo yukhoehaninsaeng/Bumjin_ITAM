@@ -43,7 +43,7 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 
 1. Vercel → Add New → Project → `Bumjin_ITAM` 저장소 Import.
 2. Framework Preset: **Other**, Root Directory: 저장소 루트.
-3. Build Command: `npm run build`, Output Directory: `dist` (vercel.json에 정의됨).
+3. Build Command: `npm run build`, Output Directory: `public` (vercel.json에 정의됨).
 4. Environment Variables:
 
 | 변수 | 값 |
