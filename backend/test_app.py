@@ -27,6 +27,21 @@ class PilotTests(unittest.TestCase):
         self.assertTrue(s[f'V{new["row"]}'].value.startswith('=IF'))
         self.assertIn(b'<svg',app.qr_svg('https://assets.example/a/'+result['id']))
         app.initialize();self.assertEqual([x['id'] for x in app.snapshot()['assets']], [x['id'] for x in c['assets']])
+    def test_assignment_and_collection(self):
+        snap=app.snapshot();a=snap['assets'][0]
+        app.mutate({'id':a['id'],'action':'사용자 변경','user':'QR 테스트','uid':'','revision':snap['revision']})
+        snap=app.snapshot();b=next(x for x in snap['assets'] if x['id']==a['id'])
+        self.assertEqual(b['user'],'QR 테스트');self.assertEqual(b['status'],'사용')
+        self.assertEqual(b['serial'],a['serial'])
+        app.mutate({'id':a['id'],'action':'사용자 확인','revision':snap['revision']})
+        snap=app.snapshot();self.assertEqual(snap['history'][0][2],'사용자 확인')
+        app.mutate({'id':a['id'],'action':'수거','revision':snap['revision']})
+        snap=app.snapshot();b=next(x for x in snap['assets'] if x['id']==a['id'])
+        self.assertEqual((b['user'],b['uid'],b['status']),('','','보관'))
+        self.assertEqual(b['serial'],a['serial'])
+        self.assertEqual(json.loads(snap['history'][0][3])['user'],'QR 테스트')
+        with self.assertRaises(ValueError):
+            app.mutate({'id':a['id'],'action':'사용자 확인','revision':snap['revision']})
     def test_http_auth_and_csrf(self):
         os.environ['APP_PASSWORD']='test-password-123'
         statuses=[]
