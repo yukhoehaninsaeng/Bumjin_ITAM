@@ -1,5 +1,5 @@
 """Bumjin Excel-backed pilot. Single process, no database server."""
-import base64, copy, datetime as dt, hashlib, hmac, io, json, os, secrets, shutil, threading, uuid
+import re, base64, copy, datetime as dt, hashlib, hmac, io, json, os, secrets, shutil, threading, uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 from wsgiref.simple_server import make_server
@@ -80,6 +80,14 @@ def snapshot():
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
                 'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:8080'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
 
+
+def next_number(all_assets, division, category, device_type='Desktop'):
+    if division not in ('BJM','BJE','BJC') or category not in ('PC','모니터'): raise ValueError('법인과 장비 구분을 선택하세요.')
+    kind='M' if category=='모니터' else ('N' if any(x in str(device_type).lower() for x in ['notebook','laptop','노트북']) else 'D')
+    prefix=f'{division}-{kind}-'
+    maximum=max((int(a['number'][len(prefix):]) for a in all_assets if a['number'].startswith(prefix) and a['number'][len(prefix):].isdigit()),default=0)
+    return prefix+str(maximum+1).zfill(3)
+
 def mutate(payload):
     with LOCK:
         old=digest()
@@ -102,7 +110,7 @@ def mutate(payload):
             if division not in CONFIG: raise ValueError('사업부를 선택하세요.')
             used=[a['row'] for a in all_assets if a['division']==division.split(':')[0] and a['category']==('모니터' if ':모니터' in division else 'PC')]; row=max(used,default=5)+1; aid=str(uuid.uuid4())
         name,date,status,grade,note=CONFIG[division]; s=w[name]
-        number=str(payload.get('number','')).strip()
+        number=next_number(all_assets,division.split(':')[0],'모니터' if ':모니터' in division else 'PC',payload.get('type','Desktop')) if not before and payload.get('auto_number') else str(payload.get('number','')).strip()
         if not number: raise ValueError('관리번호는 필수입니다.')
         if (not before or number!=before['number']) and any(a['number']==number and a['id']!=aid for a in all_assets): raise ValueError('동일 관리번호가 있습니다.')
         state=payload.get('status','보관')
