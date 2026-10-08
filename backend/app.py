@@ -14,6 +14,8 @@ CONFIG.update({'BJM:모니터':('3_1.BJM 모니터 현황','I','K','H','J'),'BJE
 MONITOR_BASE={'number':'B','department':'C','user':'D','size':'E','model':'F','serial':'G'}
 BASE = {'number':'B','department':'C','user':'D','type':'E','maker':'F','model':'G','serial':'H','cpu':'I','bits':'J','ram':'K','ssd':'L','hdd':'M','gpu':'N','os':'O','edition':'P','office':'Q','hangul':'R'}
 
+SOFTWARE_EXTRA={'BJM':{'officekeeper':'S','antivirus':'T'},'BJE':{'sap':'S','antivirus':'T','docuone':'U','other':'W'},'BJC':{'sap':'S','antivirus':'T','docuone':'U','other':'W'}}
+
 def digest(): return hashlib.sha256(FILE.read_bytes()).hexdigest()
 def value(v): return v.isoformat()[:10] if isinstance(v,(dt.datetime,dt.date)) else str(v or '')
 def literal(cell, v):
@@ -61,6 +63,7 @@ def assets(w):
             a.update(id=value(s[f'AZ{r}'].value),uid=value(s[f'BA{r}'].value),division=division.split(':')[0],category='모니터' if monitor else 'PC',row=r,
                      date=value(s[f'{date}{r}'].value),status=value(s[f'{status}{r}'].value),note=value(s[f'{note}{r}'].value),
                      date_label='제조일자' if monitor else {'BJM':'구매일자','BJE':'구입년월','BJC':'제조일자'}[division])
+            if not monitor: a.update({k:value(s[f'{c}{r}'].value) for k,c in SOFTWARE_EXTRA[division].items()})
             a['grade']='미확인'
             try:
                 d=dt.date.fromisoformat(a['date']); t=dt.date.today(); years=t.year-d.year-((t.month,t.day)<(d.month,d.day))
@@ -116,6 +119,9 @@ def mutate(payload):
                 src=s.cell(row-1,c); dst=s.cell(row,c)
                 if src.has_style: dst._style=copy.copy(src._style)
         for k,c in (MONITOR_BASE if ':모니터' in division else BASE).items(): literal(s[f'{c}{row}'],username if k=='user' else payload.get(k,''))
+        if ':모니터' not in division:
+            for k,c in SOFTWARE_EXTRA[division].items():
+                if k in payload: literal(s[f'{c}{row}'],payload[k])
         literal(s[f'{note}{row}'],payload.get('note',''));literal(s[f'{status}{row}'],state)
         s[f'{date}{row}']=parsed; s[f'{date}{row}'].number_format='yyyy-mm-dd'
         s[f'{grade}{row}']=f'=IF({date}{row}="","",IF(DATEDIF({date}{row},TODAY(),"Y")>=10,"D",IF(DATEDIF({date}{row},TODAY(),"Y")>=5,"C",IF(DATEDIF({date}{row},TODAY(),"Y")>=3,"B","A"))))'
