@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {"api/bridge.js": {"maxDuration": 30}},
+  "rewrites": [
+    {"source": "/api/data", "destination": "/api/bridge?route=data"},
+    {"source": "/api/assets", "destination": "/api/bridge?route=assets"},
+    {"source": "/api/export", "destination": "/api/bridge?route=export"},
+    {"source": "/qr/:id", "destination": "/api/bridge?route=qr&id=:id"},
+    {"source": "/a/:id", "destination": "/index.html"}
+  ],
+  "headers": [{"source": "/(.*)", "headers": [
+    {"key": "X-Content-Type-Options", "value": "nosniff"},
+    {"key": "X-Frame-Options", "value": "DENY"},
+    {"key": "Referrer-Policy", "value": "same-origin"}
+  ]}]
+}
