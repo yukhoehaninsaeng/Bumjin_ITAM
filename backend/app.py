@@ -112,6 +112,7 @@ def mutate(payload):
         name,date,status,grade,note=CONFIG[division]; s=w[name]
         number=next_number(all_assets,division.split(':')[0],'모니터' if ':모니터' in division else 'PC',payload.get('type','Desktop')) if not before and payload.get('auto_number') else str(payload.get('number','')).strip()
         if not number: raise ValueError('관리번호는 필수입니다.')
+        payload['number']=number
         if (not before or number!=before['number']) and any(a['number']==number and a['id']!=aid for a in all_assets): raise ValueError('동일 관리번호가 있습니다.')
         state=payload.get('status','보관')
         if state not in ['사용','보관','수리','폐기','분실']: raise ValueError('상태 값이 올바르지 않습니다.')
