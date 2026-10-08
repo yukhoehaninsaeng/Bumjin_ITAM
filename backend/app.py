@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parent
 FILE = Path(os.environ.get('ASSET_FILE', str(ROOT/'data/Bumjin_IT자산관리대장.xlsx')))
 LOCK = threading.RLock()
 CONFIG = {'BJM': ('3.BJM PC 현황','W','X','U','V'), 'BJE': ('4.BJE PC 현황','Y','Z','V','X'), 'BJC': ('5.BJC PC 현황','Y','Z','V','X')}
+CONFIG.update({'BJM:모니터':('3_1.BJM 모니터 현황','I','K','H','J'),'BJE:모니터':('4_1.BJE 모니터 현황','I','K','H','J'),'BJC:모니터':('5_1.BJC 모니터 현황','I','K','H','J')})
+MONITOR_BASE={'number':'B','department':'C','user':'D','size':'E','model':'F','serial':'G'}
 BASE = {'number':'B','department':'C','user':'D','type':'E','maker':'F','model':'G','serial':'H','cpu':'I','bits':'J','ram':'K','ssd':'L','hdd':'M','gpu':'N','os':'O','edition':'P','office':'Q','hangul':'R'}
 
 def digest(): return hashlib.sha256(FILE.read_bytes()).hexdigest()
@@ -53,10 +55,12 @@ def assets(w):
         s=w[name]
         for r in range(6,s.max_row+1):
             if not s[f'B{r}'].value: continue
-            a={k:value(s[f'{c}{r}'].value) for k,c in BASE.items()}
-            a.update(id=value(s[f'AZ{r}'].value),uid=value(s[f'BA{r}'].value),division=division,row=r,
+            monitor=':모니터' in division
+            a={k:'' for k in BASE}
+            a.update({k:value(s[f'{c}{r}'].value) for k,c in (MONITOR_BASE if monitor else BASE).items()})
+            a.update(id=value(s[f'AZ{r}'].value),uid=value(s[f'BA{r}'].value),division=division.split(':')[0],category='모니터' if monitor else 'PC',row=r,
                      date=value(s[f'{date}{r}'].value),status=value(s[f'{status}{r}'].value),note=value(s[f'{note}{r}'].value),
-                     date_label={'BJM':'구매일자','BJE':'구입년월','BJC':'제조일자'}[division])
+                     date_label='제조일자' if monitor else {'BJM':'구매일자','BJE':'구입년월','BJC':'제조일자'}[division])
             a['grade']='미확인'
             try:
                 d=dt.date.fromisoformat(a['date']); t=dt.date.today(); years=t.year-d.year-((t.month,t.day)<(d.month,d.day))
@@ -81,7 +85,7 @@ def mutate(payload):
         if aid:
             before=next((a for a in all_assets if a['id']==aid),None)
             if not before: raise ValueError('자산이 없습니다.')
-            division=before['division']; row=before['row']
+            division=before['division']+(':모니터' if before.get('category')=='모니터' else ''); row=before['row']
             action=payload.get('action','')
             if action not in ('','수거','사용자 변경','사용자 확인'): raise ValueError('작업 유형이 올바르지 않습니다.')
             payload={**before,**payload}
@@ -91,9 +95,9 @@ def mutate(payload):
                 payload['status']='사용'
             if action=='사용자 확인' and not before['user']: raise ValueError('현재 배정된 사용자가 없습니다.')
         else:
-            division=payload.get('division')
+            division=payload.get('division','')+(':모니터' if payload.get('category')=='모니터' else '')
             if division not in CONFIG: raise ValueError('사업부를 선택하세요.')
-            used=[a['row'] for a in all_assets if a['division']==division]; row=max(used,default=5)+1; aid=str(uuid.uuid4())
+            used=[a['row'] for a in all_assets if a['division']==division.split(':')[0] and a['category']==('모니터' if ':모니터' in division else 'PC')]; row=max(used,default=5)+1; aid=str(uuid.uuid4())
         name,date,status,grade,note=CONFIG[division]; s=w[name]
         number=str(payload.get('number','')).strip()
         if not number: raise ValueError('관리번호는 필수입니다.')
@@ -111,7 +115,7 @@ def mutate(payload):
             for c in range(1,28):
                 src=s.cell(row-1,c); dst=s.cell(row,c)
                 if src.has_style: dst._style=copy.copy(src._style)
-        for k,c in BASE.items(): literal(s[f'{c}{row}'],username if k=='user' else payload.get(k,''))
+        for k,c in (MONITOR_BASE if ':모니터' in division else BASE).items(): literal(s[f'{c}{row}'],username if k=='user' else payload.get(k,''))
         literal(s[f'{note}{row}'],payload.get('note',''));literal(s[f'{status}{row}'],state)
         s[f'{date}{row}']=parsed; s[f'{date}{row}'].number_format='yyyy-mm-dd'
         s[f'{grade}{row}']=f'=IF({date}{row}="","",IF(DATEDIF({date}{row},TODAY(),"Y")>=10,"D",IF(DATEDIF({date}{row},TODAY(),"Y")>=5,"C",IF(DATEDIF({date}{row},TODAY(),"Y")>=3,"B","A"))))'
