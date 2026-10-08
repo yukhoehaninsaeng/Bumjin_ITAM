@@ -140,6 +140,69 @@ def mutate(payload):
         save(w,old)
         return {'id':aid}
 
+
+MAINT_FIELDS={'vendor':'B','service':'C','quantity':'D','division':'E','period':'F','cost2024':'G','cost2025':'H','cost2026':'I','contact':'J','note':'L','end':'M','start':'N'}
+def maintenance_snapshot():
+    with LOCK:
+        w=openpyxl.load_workbook(FILE);s=w['2.전산 유지보수']
+        def resolved(row,col):
+            cell=s.cell(row,col)
+            for area in s.merged_cells.ranges:
+                if area.min_row<=row<=area.max_row and area.min_col<=col<=area.max_col:
+                    return s.cell(area.min_row,area.min_col).value
+            return cell.value
+        contracts=[]
+        for row in range(3,18):
+            if not s.cell(row,5).value: continue
+            a={k:value(resolved(row,openpyxl.utils.column_index_from_string(c))) for k,c in MAINT_FIELDS.items()};a['row']=row
+            try:a['remaining']=(dt.date.fromisoformat(a['end'])-dt.date.today()).days
+            except ValueError:a['remaining']=None
+            a['shared']=[k for k,c in MAINT_FIELDS.items() if isinstance(s[f'{c}{row}'],openpyxl.cell.cell.MergedCell)]
+            contracts.append(a)
+        if '앱_유지보수' in w:
+            extra=w['앱_유지보수']
+            for r in range(2,extra.max_row+1):
+                a={k:value(extra[f'{c}{r}'].value) for k,c in MAINT_FIELDS.items()}
+                if not a['service']:continue
+                a.update(row=1000+r,shared=[])
+                try:a['remaining']=(dt.date.fromisoformat(a['end'])-dt.date.today()).days
+                except ValueError:a['remaining']=None
+                contracts.append(a)
+        sections=[];section=None
+        for row in range(18,s.max_row+1):
+            vals=[value(resolved(row,c)) for c in range(2,18)]
+            title=next((v for v in vals if v.startswith('◎')),None)
+            if title:section={'title':title,'rows':[]};sections.append(section)
+            elif section and any(vals):section['rows'].append(vals)
+        return {'contracts':contracts,'sections':sections,'revision':digest(),'csrf':SESSION}
+def mutate_maintenance(payload):
+    with LOCK:
+        old=digest()
+        if payload.get('revision')!=old:raise ValueError('다른 변경이 있습니다. 새로고침하세요.')
+        w=openpyxl.load_workbook(FILE);s=w['2.전산 유지보수'];row=int(payload.get('row',0))
+        if row==0 or row>=1002:
+            if '앱_유지보수' not in w:
+                w.create_sheet('앱_유지보수')
+                for k,c in MAINT_FIELDS.items():w['앱_유지보수'][f'{c}1']=k
+            s=w['앱_유지보수'];row=s.max_row+1 if row==0 else row-1000
+            if row<2 or row>s.max_row+1:raise ValueError('계약 행이 없습니다.')
+        elif row not in range(3,18):raise ValueError('원본 계약 행을 선택하세요.')
+        if not str(payload.get('service',s[f'C{row}'].value or '')).strip():raise ValueError('서비스 이름은 필수입니다.')
+        for k,c in MAINT_FIELDS.items():
+            if k not in payload:continue
+            cell=s[f'{c}{row}']
+            if isinstance(cell,openpyxl.cell.cell.MergedCell):continue
+            v=payload[k]
+            if k in ('start','end'):cell.value=dt.date.fromisoformat(v) if v else None;cell.number_format='yyyy-mm-dd'
+            elif k.startswith('cost'):
+                n=float(v or 0)
+                if n<0:raise ValueError('비용은 0 이상이어야 합니다.')
+                cell.value=n
+            else:literal(cell,v)
+        s[f'K{row}']=f'=IF(M{row}="","",M{row}-TODAY())'
+        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),'maintenance:'+str(row),'유지보수 수정','',json.dumps(payload,ensure_ascii=False)])
+        save(w,old);return {'row':row}
+
 def qr_svg(url):
     from reportlab.graphics.barcode.qr import QrCodeWidget
     from reportlab.graphics.shapes import Drawing
@@ -162,6 +225,12 @@ def application(env,start):
     if not password or not valid:return reply('401 Unauthorized',{'error':'관리자 로그인이 필요합니다.'},extra=[('WWW-Authenticate','Basic realm="Bumjin Assets"')])
     path=env.get('PATH_INFO','/'); method=env.get('REQUEST_METHOD','GET')
     try:
+        if method=='GET' and path=='/api/maintenance':return reply('200 OK',maintenance_snapshot())
+        if method=='POST' and path=='/api/maintenance':
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
+            length=int(env.get('CONTENT_LENGTH') or '0')
+            if length>20000:return reply('413 Payload Too Large',{})
+            return reply('200 OK',mutate_maintenance(json.loads(env['wsgi.input'].read(length))))
         if method=='GET' and path=='/api/data':return reply('200 OK',{**snapshot(),'csrf':SESSION})
         if method=='GET' and path=='/api/export':return reply('200 OK',FILE.read_bytes(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', [('Content-Disposition','attachment; filename="Bumjin_IT_assets.xlsx"')])
         if method=='GET' and path.startswith('/qr/'):
