@@ -78,7 +78,7 @@ def snapshot():
         users=[dict(zip(['uid','name','email','directory_id'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=4,values_only=True) if r[0]]
         history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=5,values_only=True)]
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
-                'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:8080'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
+                'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:8080'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
 
 def mutate(payload):
     with LOCK:
