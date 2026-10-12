@@ -4,6 +4,16 @@
 
 현재 권장 실행 방식은 **Windows PC 또는 사내 서버에서 Python 앱 실행**입니다. 별도 DB 서버 없이 로컬 Excel 파일에 저장합니다.
 
+## 프로그램 구성과 사용 순서
+
+Python 서버가 Excel을 읽고 저장하며, 관리자는 브라우저로 접속합니다. 서버를 종료하면 웹 접속도 중지됩니다. 로컬 실행에는 Node.js나 별도 DB 서버가 필요하지 않습니다.
+
+1. 소스를 다운로드하고 테스트 Excel 준비
+2. Python 서버 실행
+3. 관리자 로그인
+4. 자산 목록·QR·유지보수 메뉴 사용
+5. 변경 사항 저장 및 백업 확인
+
 ## 주요 기능
 
 | 구분 | 기능 |
@@ -26,7 +36,17 @@
 
 ## 빠른 실행 — Windows
 
-### 1. 준비
+### 1. 다운로드 및 Python 확인
+
+[저장소](https://github.com/yukhoehaninsaeng/Bumjin_ITAM)에서 **Code → Download ZIP**으로 다운로드하고 압축을 푸세요. 아래 명령의 `C:\ITAM`은 예시 경로이므로 실제 압축을 푼 폴더에 맞춰 바꿉니다.
+
+PowerShell에서 확인:
+
+```powershell
+py --version
+```
+
+### 2. 테스트 Excel 준비
 
 - Python 3.11 이상
 - 이 저장소를 다운로드하거나 clone
@@ -45,12 +65,14 @@ Bumjin_ITAM/
 
 Excel 파일은 공개 저장소에 포함되지 않습니다. 내려받은 파일 이름에 붙은 `(1)` 등을 제거하세요.
 
-### 2. 실행
+### 3. 내 PC에서 실행
 
 PowerShell에서 프로젝트의 backend 폴더로 이동합니다.
 
 ```powershell
-cd C:\Bumjin_ITAM-main\backend
+cd C:\ITAM\backend
+$env:HOST = '127.0.0.1'
+$env:PORT = '8080'
 $env:PUBLIC_BASE_URL = 'http://127.0.0.1:8080'
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
@@ -63,17 +85,17 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 - 종료: PowerShell에서 **Ctrl+C**
 - 실행 중 PowerShell 창을 유지하세요.
 
-### 3. 휴대폰 및 다른 PC에서 접속
+### 4. 휴대폰 및 다른 PC에서 접속
 
-PC의 사내 IP를 사용합니다. 아래 IP는 예시이며 실제 실행 PC 주소에 맞춰 바꾸세요.
+기존 서버를 Ctrl+C로 종료한 뒤 설정을 바꾸고 재실행합니다. `YOUR_PC_IP`는 실제 실행 PC의 IPv4 주소로 교체해야 하는 자리표시자입니다. PowerShell에서 `ipconfig`로 확인하세요.
 
 ```powershell
 $env:HOST = '0.0.0.0'
-$env:PUBLIC_BASE_URL = 'http://10.10.30.225:8080'
+$env:PUBLIC_BASE_URL = 'http://YOUR_PC_IP:8080'
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
-브라우저 접속: http://10.10.30.225:8080
+브라우저 주소: `http://YOUR_PC_IP:8080` — 자리표시자를 실제 PC 주소로 바꿔 입력
 
 휴대폰에서 해당 PC에 접근 가능한 사내 Wi-Fi를 사용하고, 필요한 경우 Windows 방화벽의 TCP 8080 접근을 허용합니다. HTTP에서는 테스트 비밀번호를 사용하고 실제 운영은 HTTPS를 구성하세요.
 
@@ -89,7 +111,7 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 | BJE | BJE-D-001 | BJE-N-001 | BJE-M-001 |
 | BJC | BJC-D-001 | BJC-N-001 | BJC-M-001 |
 
-신규 등록 시 **같은 접두어의 최대 번호 + 1**로 생성합니다. 기존 `MD001`, `CN001`, `MM001` 등의 코드는 유지하며, 이 레거시 번호는 새 형식의 번호 계산에 합산하지 않습니다. 삭제·누락된 번호는 자동 재사용하지 않습니다.
+신규 등록 시 **같은 접두어의 최대 번호 + 1**로 생성합니다. 기존 `MD001`, `CN001`, `MM001` 등의 코드는 유지하며, 이 레거시 번호는 새 형식의 번호 계산에 합산하지 않습니다. 최대 번호 아래의 빈 번호를 채우지 않습니다. 별도 번호 예약 대장이 없으므로 최고 번호 행을 직접 삭제하는 운영은 피하세요.
 
 다른 사용자가 먼저 저장해 Excel 버전이 바뀌면 새로고침 후 다시 등록해야 합니다.
 
@@ -184,6 +206,14 @@ Google Drive 자동 업로드는 **미구현**입니다. 현재 저장 대상은
 
 Vercel에서 사내 API를 사용하려면 접근 가능한 HTTPS 경로가 필요합니다. 사내 IP 또는 `.local` 주소만 입력해서는 사내망 연결이 만들어지지 않습니다.
 
+## 종료 및 다시 실행
+
+- 서버 PowerShell에서 **Ctrl+C**로 종료합니다.
+- 재실행할 때 backend 폴더에서 `start.ps1`을 실행합니다.
+- 새 PowerShell을 열면 HOST·PORT·PUBLIC_BASE_URL을 다시 설정하세요.
+- `.env.example`은 참고 파일이며 자동으로 로드하지 않습니다.
+- 서버 안내에 localhost가 표시돼도 HOST를 설정했다면 해당 PC 주소로 접속할 수 있습니다.
+
 ## 업데이트 방법
 
 서버를 종료하고 최신 파일을 덮어쓴 뒤 재실행합니다.
@@ -195,6 +225,23 @@ Vercel에서 사내 API를 사용하려면 접근 가능한 HTTPS 경로가 필�
 | 전체 업데이트 | 저장소 코드 업데이트, 기존 backend/data 유지 |
 
 브라우저는 Ctrl+F5로 새로고침하세요. 프로그램은 `public/index.html`을 제공하며 CSS와 JavaScript가 이 HTML에 포함되어 있습니다.
+
+## 문제 해결
+
+| 증상 | 해결 방법 |
+|---|---|
+| Python 명령을 찾을 수 없음 | Python 및 Windows Launcher 설치 확인, PowerShell 다시 열기 |
+| 경로를 찾을 수 없음 | 실제 압축을 푼 위치와 backend 폴더 확인 |
+| Excel을 찾을 수 없음 | 지정 파일명과 data 폴더 확인, 파일명의 (1) 접미사 제거 |
+| 패키지 누락 | backend에서 `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` 실행 |
+| 비밀번호 입력이 안 보임 | 숨김 입력이므로 정상. 12자 이상 입력 후 Enter |
+| 휴대폰 접속 불가 | HOST, PC 주소, 네트워크 접근 경로, 방화벽 확인 |
+| QR에서 자산을 못 찾음 | 앱용 Excel의 UUID 유지 여부 확인, 현재 대장에서 QR 다시 출력 |
+| 모니터 정보가 없음 | app.py와 index.html을 함께 교체하고 서버 재시작 |
+| 디자인이 그대로임 | 실행 프로젝트의 public/index.html 확인 후 Ctrl+F5 |
+| 저장 권한 오류 | Excel에서 파일을 닫고 다시 시도 |
+| 다른 변경 / 세션 변경 오류 | 새로고침 후 다시 입력 |
+| 실행 중인 앱이 있다는 오류 | 기존 서버 종료. 비정상 종료 후 실행 프로세스가 없음을 확인한 경우에만 해당 .app.lock 파일 제거 |
 
 ## 검증
 
