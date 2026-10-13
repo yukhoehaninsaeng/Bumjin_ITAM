@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from wsgiref.simple_server import make_server
 import openpyxl
+import admin_service
 from openpyxl.workbook.properties import CalcProperties
 
 ROOT = Path(__file__).resolve().parent
@@ -75,10 +76,10 @@ def assets(w):
 def snapshot():
     with LOCK:
         rev=digest(); w=openpyxl.load_workbook(FILE)
-        users=[dict(zip(['uid','name','email','directory_id'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=4,values_only=True) if r[0]]
+        users=[dict(zip(['uid','name','email','directory_id','department','dn'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=6,values_only=True) if r[0]]
         history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=5,values_only=True)]
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
-                'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
+                'organizations':[{'name':value(r[0]),'dn':value(r[1])} for r in w['앱_LDAP조직'].iter_rows(min_row=2,max_col=2,values_only=True) if r[0]] if '앱_LDAP조직' in w else [],'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
 
 
 def next_number(all_assets, division, category, device_type='Desktop'):
@@ -218,13 +219,25 @@ def application(env,start):
     gateway=os.environ.get('BACKEND_GATEWAY_TOKEN','')
     if gateway and not hmac.compare_digest(env.get('HTTP_X_GATEWAY_TOKEN',''),gateway):
         return reply('403 Forbidden',{'error':'게이트웨이 인증이 필요합니다.'})
-    password=os.environ.get('APP_PASSWORD','')
     auth=env.get('HTTP_AUTHORIZATION','')
-    try: valid=auth.startswith('Basic ') and hmac.compare_digest(base64.b64decode(auth[6:]).decode(), 'admin:'+password)
-    except Exception: valid=False
-    if not password or not valid:return reply('401 Unauthorized',{'error':'관리자 로그인이 필요합니다.'},extra=[('WWW-Authenticate','Basic realm="Bumjin Assets"')])
+    try:
+        login=base64.b64decode(auth[6:],validate=True).decode().split(':',1)
+        valid=auth.startswith('Basic ') and len(login)==2 and login[0]=='admin' and admin_service.password_valid(__import__(__name__),login[1])
+    except Exception:valid=False
+    if not valid:return reply('401 Unauthorized',{'error':'관리자 로그인이 필요합니다.'},extra=[('WWW-Authenticate','Basic realm="Bumjin Assets"')])
     path=env.get('PATH_INFO','/'); method=env.get('REQUEST_METHOD','GET')
     try:
+        if method=='GET' and path=='/api/admin':return reply('200 OK',{**admin_service.settings(__import__(__name__)),'csrf':SESSION})
+        if method=='POST' and path in ('/api/admin','/api/admin/ldap'):
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
+            length=int(env.get('CONTENT_LENGTH') or '0')
+            if length>20000:return reply('413 Payload Too Large',{})
+            payload=json.loads(env['wsgi.input'].read(length))
+            try:
+                result=admin_service.synchronize(__import__(__name__),payload) if path.endswith('/ldap') else admin_service.update_settings(__import__(__name__),payload)
+            except ValueError:raise
+            except Exception:return reply('400 Bad Request',{'error':'LDAP 연결 또는 설정 처리 실패. 주소·인증서·계정·검색 권한을 확인하세요.'})
+            return reply('200 OK',result)
         if method=='GET' and path=='/api/maintenance':return reply('200 OK',maintenance_snapshot())
         if method=='POST' and path=='/api/maintenance':
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
@@ -243,7 +256,7 @@ def application(env,start):
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>20000:return reply('413 Payload Too Large',{})
             return reply('200 OK',mutate(json.loads(env['wsgi.input'].read(length))))
-        if method=='GET' and (path=='/' or path.startswith('/a/')):return reply('200 OK',(ROOT.parent/'public/index.html').read_bytes(),'text/html; charset=utf-8')
+        if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/a/')):return reply('200 OK',(ROOT.parent/'public/index.html').read_bytes(),'text/html; charset=utf-8')
         return reply('404 Not Found',{})
     except (ValueError,KeyError) as e:return reply('409 Conflict',{'error':str(e)})
     except PermissionError:return reply('409 Conflict',{'error':'엑셀이 열려 있거나 파일 권한이 없습니다. 파일을 닫고 재시도하세요.'})
@@ -251,7 +264,7 @@ def application(env,start):
         import traceback;traceback.print_exc();return reply('500 Internal Server Error',{'error':'처리 실패. 서버 로그를 확인하세요.'})
 
 if __name__=='__main__':
-    if len(os.environ.get('APP_PASSWORD',''))<12:raise SystemExit('APP_PASSWORD를 12자 이상으로 지정하세요.')
+    if not admin_service.settings(__import__(__name__))['password_configured'] and len(os.environ.get('APP_PASSWORD',''))<12:raise SystemExit('APP_PASSWORD를 12자 이상으로 지정하세요.')
     if os.environ.get('BACKEND_GATEWAY_TOKEN') and len(os.environ['BACKEND_GATEWAY_TOKEN'])<24:raise SystemExit('게이트웨이 토큰은 24자 이상이어야 합니다.')
     lock=FILE.with_suffix('.app.lock')
     try: fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
