@@ -72,14 +72,14 @@ PowerShell에서 프로젝트의 backend 폴더로 이동합니다.
 ```powershell
 cd C:\ITAM\backend
 $env:HOST = '127.0.0.1'
-$env:PORT = '8080'
-$env:PUBLIC_BASE_URL = 'http://127.0.0.1:8080'
+$env:PORT = '1880'
+$env:PUBLIC_BASE_URL = 'http://127.0.0.1:1880'
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
 최초 실행 시 가상 환경과 패키지를 설치하고, **12자 이상 테스트 관리자 비밀번호**를 입력받습니다.
 
-- 접속: http://127.0.0.1:8080
+- 접속: http://127.0.0.1:1880
 - 사용자 이름: `admin`
 - 비밀번호: 실행 때 입력한 값
 - 종료: PowerShell에서 **Ctrl+C**
@@ -91,13 +91,13 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 
 ```powershell
 $env:HOST = '0.0.0.0'
-$env:PUBLIC_BASE_URL = 'http://YOUR_PC_IP:8080'
+$env:PUBLIC_BASE_URL = 'http://YOUR_PC_IP:1880'
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
-브라우저 주소: `http://YOUR_PC_IP:8080` — 자리표시자를 실제 PC 주소로 바꿔 입력
+브라우저 주소: `http://YOUR_PC_IP:1880` — 자리표시자를 실제 PC 주소로 바꿔 입력
 
-휴대폰에서 해당 PC에 접근 가능한 사내 Wi-Fi를 사용하고, 필요한 경우 Windows 방화벽의 TCP 8080 접근을 허용합니다. HTTP에서는 테스트 비밀번호를 사용하고 실제 운영은 HTTPS를 구성하세요.
+휴대폰에서 해당 PC에 접근 가능한 사내 Wi-Fi를 사용하고, 필요한 경우 Windows 방화벽의 TCP 1880 접근을 허용합니다. HTTP에서는 테스트 비밀번호를 사용하고 실제 운영은 HTTPS를 구성하세요.
 
 환경변수 변경 후 서버를 재시작해야 새 QR 주소에 반영됩니다. 기존에 인쇄한 QR은 이전 주소를 포함할 수 있습니다.
 
