@@ -26,7 +26,7 @@ $env:APP_PASSWORD = Read-Host '테스트 관리자 비밀번호 (12자 이상)'
 .\.venv\Scripts\python.exe app.py
 ```
 
-브라우저: http://127.0.0.1:8080 / 사용자 이름 admin / 위에서 입력한 비밀번호.
+브라우저: http://127.0.0.1:1880 / 사용자 이름 admin / 위에서 입력한 비밀번호.
 중지: Ctrl+C. DB 설치는 필요 없습니다. 이 실행 환경에서는 의존성 다운로드가 제한돼 기존 설치 라이브러리로 핵심 기능을 시험했습니다. 패키지 설치와 LDAP는 사용자 환경에서 확인해야 합니다.
 
 ## 사용하는 엑셀과 Google Drive
@@ -62,7 +62,7 @@ $env:PUBLIC_BASE_URL = 'https://자산앱의-실제-사내주소'
 LDAP 연동은 사내 네트워크에서만 가능합니다. 웹앱을 종료하고 실행합니다. 비밀번호를 코드나 문서에 기록하지 않습니다.
 
 ```powershell
-$env:LDAP_HOST = 'ldap.bumjin.local'
+$env:LDAP_HOST = 'ldap.example.local'
 $env:LDAP_BIND_DN = '실제-읽기용-계정-DN'
 $env:LDAP_BIND_PASSWORD = Read-Host '읽기용 계정 비밀번호'
 $env:LDAP_NAME_ATTRIBUTE = '화면의-설명-실명에-대응하는-확인된-속성'
@@ -72,7 +72,7 @@ $env:LDAP_CA_FILE = 'C:\인증서\사내CA.pem'
 .\.venv\Scripts\python.exe sync_ldap.py
 ```
 
-Base DN은 dc=ldap,dc=bumjin,dc=local, 사용자 검색 Base 후보는 cn=users,dc=ldap,dc=bumjin,dc=local입니다. 화면의 설명 열에 실명이 있으나 실제 LDAP 속성명은 직접 조회해 확정해야 합니다. LDAPS 636과 인증서 검증이 선행돼야 합니다.
+Base DN은 dc=example,dc=local, 사용자 검색 Base 후보는 cn=users,dc=example,dc=local입니다. 화면의 설명 열에 실명이 있으나 실제 LDAP 속성명은 직접 조회해 확정해야 합니다. LDAPS 636과 인증서 검증이 선행돼야 합니다.
 가져오기 후 앱을 다시 열면 사용자 선택 목록에 표시됩니다. 사용자를 선택하면 Excel D열에는 실명, BA열에는 uid를 저장합니다. 계정 삭제를 자산 반납으로 처리하지 않습니다. 기존 이름의 자동 대량 매핑/정기 동기화/계정 상태 재검증은 다음 단계입니다. 동명이인은 uid와 이메일을 대조해 선택하세요.
 
 ## 아직 구현하지 않은 범위
