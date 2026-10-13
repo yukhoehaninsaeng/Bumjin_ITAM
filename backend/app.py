@@ -78,7 +78,7 @@ def snapshot():
         users=[dict(zip(['uid','name','email','directory_id'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=4,values_only=True) if r[0]]
         history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=5,values_only=True)]
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
-                'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:8080'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
+                'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
 
 
 def next_number(all_assets, division, category, device_type='Desktop'):
@@ -236,7 +236,7 @@ def application(env,start):
         if method=='GET' and path.startswith('/qr/'):
             aid=path.split('/')[-1]
             if not any(a['id']==aid for a in snapshot()['assets']):return reply('404 Not Found',{})
-            url=os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:8080').rstrip('/')+'/a/'+aid
+            url=os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880').rstrip('/')+'/a/'+aid
             return reply('200 OK',qr_svg(url),'image/svg+xml')
         if method=='POST' and path=='/api/assets':
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'세션이 변경됐습니다. 새로고침하세요.'})
@@ -257,6 +257,6 @@ if __name__=='__main__':
     try: fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
     except FileExistsError:raise SystemExit('실행 중인 앱이 있습니다. 비정상 종료였다면 실행 프로세스가 없는지 확인한 뒤 .app.lock 파일을 삭제하세요.')
     try:
-        os.close(fd);initialize();print('Bumjin Assets: http://127.0.0.1:8080 (로그인: admin)')
-        make_server(os.environ.get('HOST','127.0.0.1'),int(os.environ.get('PORT','8080')),application).serve_forever()
+        os.close(fd);initialize();print('Bumjin Assets: '+os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:'+os.environ.get('PORT','1880'))+' (로그인: admin)')
+        make_server(os.environ.get('HOST','127.0.0.1'),int(os.environ.get('PORT','1880')),application).serve_forever()
     finally:lock.unlink(missing_ok=True)
