@@ -1,0 +1,27 @@
+services:
+  itam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 30s
+    user: "${ITAM_UID:-1000}:${ITAM_GID:-1000}"
+    ports:
+      - "1880:1880"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "1880"
+      ASSET_FILE: "/data/Bumjin_IT자산관리대장.xlsx"
+      PUBLIC_BASE_URL: "${ITAM_PUBLIC_BASE_URL:?Set ITAM_PUBLIC_BASE_URL in .env}"
+      APP_PASSWORD: "${ITAM_ADMIN_PASSWORD:?Set ITAM_ADMIN_PASSWORD in .env}"
+      TZ: "Asia/Seoul"
+    volumes:
+      - ./data:/data
+      - ./certs:/certs:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
