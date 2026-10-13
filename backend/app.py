@@ -1,5 +1,5 @@
 """Bumjin Excel-backed pilot. Single process, no database server."""
-import re, base64, copy, datetime as dt, hashlib, hmac, io, json, os, secrets, shutil, threading, uuid
+import signal, re, base64, copy, datetime as dt, hashlib, hmac, io, json, os, secrets, shutil, threading, uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 from wsgiref.simple_server import make_server
@@ -285,6 +285,8 @@ def application(env,start):
 if __name__=='__main__':
     if not admin_service.settings(__import__(__name__))['password_configured'] and len(os.environ.get('APP_PASSWORD',''))<12:raise SystemExit('APP_PASSWORD를 12자 이상으로 지정하세요.')
     if os.environ.get('BACKEND_GATEWAY_TOKEN') and len(os.environ['BACKEND_GATEWAY_TOKEN'])<24:raise SystemExit('게이트웨이 토큰은 24자 이상이어야 합니다.')
+    def stop_server(signum, frame): raise SystemExit(0)
+    signal.signal(signal.SIGTERM,stop_server)
     lock=FILE.with_suffix('.app.lock')
     try: fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)
     except FileExistsError:raise SystemExit('실행 중인 앱이 있습니다. 비정상 종료였다면 실행 프로세스가 없는지 확인한 뒤 .app.lock 파일을 삭제하세요.')
