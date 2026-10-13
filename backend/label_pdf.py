@@ -55,8 +55,8 @@ def make_pdf(assets,base_url,logo_path,options):
         qx=x+(40*mm-size)/2;qy=y+40*mm-1.95*mm-size
         renderPDF.draw(drawing,c,qx,qy)
         if logo:
-            c.setFillColorRGB(1,1,1);c.roundRect(qx+59/240*size,qy+104/240*size,122/240*size,32/240*size,.25*mm,stroke=0,fill=1)
-            c.drawImage(logo,qx+62/240*size,qy+107/240*size,116/240*size,26/240*size,preserveAspectRatio=True,anchor='c',mask='auto')
+            c.setFillColorRGB(1,1,1);c.roundRect(qx+49/240*size,qy+102/240*size,142/240*size,36/240*size,.25*mm,stroke=0,fill=1)
+            c.drawImage(logo,qx+52/240*size,qy+105/240*size,136/240*size,30/240*size,preserveAspectRatio=True,anchor='c',mask='auto')
         text=str(a['number']);fontsize=10.45
         while pdfmetrics.stringWidth(text,font,fontsize)>36.1*mm and fontsize>4:fontsize-=.25
         if pdfmetrics.stringWidth(text,font,fontsize)>36.1*mm:raise ValueError('자산코드가 라벨에 표시하기 너무 깁니다.')
