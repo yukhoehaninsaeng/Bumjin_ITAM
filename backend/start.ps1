@@ -12,5 +12,7 @@ if (-not $env:APP_PASSWORD) {
     try { $env:APP_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer) }
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer) }
 }
-Write-Host '접속: http://127.0.0.1:8080 / 사용자: admin'
+if (-not $env:PORT) { $env:PORT = '1880' }
+if (-not $env:PUBLIC_BASE_URL) { $env:PUBLIC_BASE_URL = "http://127.0.0.1:$($env:PORT)" }
+Write-Host "URL: $($env:PUBLIC_BASE_URL) / User: admin"
 & '.\.venv\Scripts\python.exe' app.py
