@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+!.env.example
+!.nas.env.example
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.xlsx
+**/*.xls
+**/*.pem
+**/*.key
+backend/data
+data
+certs
+node_modules
+.vercel
