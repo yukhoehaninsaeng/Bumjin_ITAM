@@ -217,7 +217,7 @@ def qr_svg(url):
         logo=logo_path.read_text('utf-8')
         match=re.search(r'xlink:href="([^"]+)"',logo)
         if match:
-            svg=svg.replace('</svg>','<rect x="59" y="104" width="122" height="32" rx="2" fill="white"/><image x="62" y="107" width="116" height="26" preserveAspectRatio="xMidYMid meet" xlink:href="'+match.group(1)+'"/></svg>')
+            svg=svg.replace('</svg>','<rect x="49" y="102" width="142" height="36" rx="2" fill="white"/><image x="52" y="105" width="136" height="30" preserveAspectRatio="xMidYMid meet" xlink:href="'+match.group(1)+'"/></svg>')
     return svg.encode()
 
 SESSION=secrets.token_urlsafe(32)
