@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 from wsgiref.simple_server import make_server
 import openpyxl
 import admin_service
+import label_pdf
 from openpyxl.workbook.properties import CalcProperties
 
 ROOT = Path(__file__).resolve().parent
@@ -235,6 +236,16 @@ def application(env,start):
     if not valid:return reply('401 Unauthorized',{'error':'관리자 로그인이 필요합니다.'},extra=[('WWW-Authenticate','Basic realm="Bumjin Assets"')])
     path=env.get('PATH_INFO','/'); method=env.get('REQUEST_METHOD','GET')
     try:
+        if method=='POST' and path=='/api/labels/pdf':
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
+            length=int(env.get('CONTENT_LENGTH') or '0')
+            if length>100000:return reply('413 Payload Too Large',{})
+            payload=json.loads(env['wsgi.input'].read(length));ids=payload.get('ids',[])
+            if not isinstance(ids,list) or not 1<=len(ids)<=500 or any(not isinstance(i,str) for i in ids) or len(set(ids))!=len(ids):raise ValueError('고유한 자산 1~500개를 선택하세요.')
+            current={a['id']:a for a in snapshot()['assets']}
+            if any(i not in current for i in ids):raise ValueError('선택한 자산이 없습니다. 새로고침하세요.')
+            pdf=label_pdf.make_pdf([current[i] for i in ids],os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'),ROOT.parent/'public/qr-label-logo.svg',payload)
+            return reply('200 OK',pdf,'application/pdf',[('Content-Disposition','attachment; filename="Bumjin_QRP-3990.pdf"')])
         if method=='GET' and path=='/api/admin':return reply('200 OK',{**admin_service.settings(__import__(__name__)),'csrf':SESSION})
         if method=='POST' and path in ('/api/admin','/api/admin/ldap'):
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
