@@ -208,8 +208,16 @@ def qr_svg(url):
     from reportlab.graphics.barcode.qr import QrCodeWidget
     from reportlab.graphics.shapes import Drawing
     from reportlab.graphics import renderSVG
-    qr=QrCodeWidget(url);x,y,x2,y2=qr.getBounds();d=Drawing(240,240,transform=[240/(x2-x),0,0,240/(y2-y),0,0]);d.add(qr)
-    return renderSVG.drawToString(d).encode()
+    qr=QrCodeWidget(url,barLevel='H',barBorder=4);x,y,x2,y2=qr.getBounds();d=Drawing(240,240,transform=[240/(x2-x),0,0,240/(y2-y),0,0]);d.add(qr)
+    # Central logo covers a small horizontal strip; quiet zone is preserved.
+    svg=renderSVG.drawToString(d).replace('<title>', '<rect x="0" y="0" width="240" height="240" fill="white"/><title>')
+    logo_path=ROOT.parent/'public/qr-label-logo.svg'
+    if logo_path.exists():
+        logo=logo_path.read_text('utf-8')
+        match=re.search(r'xlink:href="([^"]+)"',logo)
+        if match:
+            svg=svg.replace('</svg>','<rect x="77" y="105" width="86" height="30" fill="white"/><image x="80" y="107" width="80" height="26" preserveAspectRatio="xMidYMid meet" xlink:href="'+match.group(1)+'"/></svg>')
+    return svg.encode()
 
 SESSION=secrets.token_urlsafe(32)
 def application(env,start):
