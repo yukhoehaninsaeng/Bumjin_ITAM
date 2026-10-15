@@ -52,6 +52,7 @@ def initialize():
                     s[f'AZ{r}']=str(uuid.uuid4()); changed=True
         for name,headers in [('앱_이력',['시각','자산ID','유형','이전','이후']),('앱_LDAP사용자',['uid','실명','이메일','디렉터리ID'])]:
             if name not in w: w.create_sheet(name).append(headers); changed=True
+        if organization_service.bootstrap_from_excel(__import__(__name__),w):changed=True
         if changed: save(w,old)
 
 def assets(w):
@@ -81,7 +82,7 @@ def snapshot():
         users=[dict(zip(['uid','name','email','directory_id','department','dn','description'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=7,values_only=True) if r[0]]
         history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=5,values_only=True)]
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
-                'organizations':[{'name':value(r[0]),'dn':value(r[1])} for r in w['앱_LDAP조직'].iter_rows(min_row=2,max_col=2,values_only=True) if r[0]] if '앱_LDAP조직' in w else [],'managed_organizations':organization_service.rows(w),'organization_history':organization_service.history(w),'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
+                'organizations':[{'name':value(r[0]),'dn':value(r[1])} for r in w['앱_LDAP조직'].iter_rows(min_row=2,max_col=2,values_only=True) if r[0]] if '앱_LDAP조직' in w else [],'managed_organizations':organization_service.rows(w),'asset_organizations':organization_service.asset_links(w),'organization_history':organization_service.history(w),'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880')}
 
 
 def next_number(all_assets, division, category, device_type='Desktop'):
