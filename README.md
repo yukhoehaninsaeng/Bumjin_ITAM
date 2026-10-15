@@ -335,3 +335,18 @@ cd backend
 `backend/admin_service.py`, `backend/organization_service.py`, `backend/app.py`, `public/index.html`을 함께 갱신한 뒤 Docker 이미지를 다시 빌드하고 기존과 같은 데이터·환경설정·인증서 마운트로 컨테이너를 재생성합니다. **컨테이너 재시작만으로 이미지 안의 코드가 갱신되지는 않습니다.** 기존 Excel을 교체하거나 삭제하지 마세요. 새 관리 시트는 작업 시 자동으로 생성됩니다.
 
 개발 검증: 실제 업무 Excel의 사본을 사용해 `TEST_WORKBOOK=/absolute/path/test.xlsx ASSET_FILE=/absolute/path/test.xlsx python -m unittest discover -s backend`를 실행합니다. 자동 테스트는 LDAP 모의 연결을 사용하므로 NAS의 실제 스키마·ACL·인증서 및 쓰기 반영은 테스트 계정으로 추가 확인해야 합니다.
+
+
+## 이름 기반 자산의 LDAP 일괄 매핑
+
+사용자 리스트에서 **LDAP 미매핑 · 이름 기반** 사용자를 클릭하면 상세 상단에 LDAP 계정 검색·선택과 자산 선택 기능이 나타납니다.
+
+1. 연결할 LDAP 계정을 계정명·설명·이메일로 검색하고 선택합니다.
+2. 현재 이름으로 배정된 PC·모니터 중 대상 자산을 선택합니다. 기본은 전체 선택이며 동명이인·공용 장비는 제외하세요.
+3. **선택 자산 매핑 미리보기**에서 관리번호·법인·부서를 확인합니다.
+4. **선택 자산 일괄 매핑**을 누르면 최대 500개 자산의 LDAP uid와 사용자 표시이름을 Excel에 한 번에 저장합니다.
+5. 매핑 후에는 선택한 LDAP 사용자 상세에서 기존 자산과 새로 매핑한 자산을 함께 조회합니다. 일부만 매핑하면 나머지는 이름 기반 목록에 남습니다.
+
+자산 상태·부서·사양·SW 기재값은 유지합니다. PC의 SW 정보는 해당 PC와 함께 사용자 상세에서 조회되며 별도 라이선스 지급 내역을 새로 만들지는 않습니다. NAS LDAP의 사용자·비밀번호·부서를 수정하는 작업이 아니라 **자산대장에 LDAP 계정을 연결**하는 작업입니다. 기존 매핑이 있거나 사용자/Excel이 변경된 경우 전체 저장을 중단합니다. 자산별 이력에 `LDAP 일괄 매핑`이 남습니다.
+
+NAS에는 `backend/app.py`와 `public/index.html`을 함께 업데이트하고 이미지를 재빌드한 뒤 컨테이너를 재생성해야 합니다. 앞선 조직 관리 버전의 `backend/admin_service.py`, `backend/organization_service.py`도 있어야 합니다.
