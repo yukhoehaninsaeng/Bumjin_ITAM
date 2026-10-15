@@ -2,6 +2,7 @@ import base64, io, json, os, shutil, tempfile, unittest
 from pathlib import Path
 import openpyxl
 import app
+import auth_service
 
 class AssetMappingTests(unittest.TestCase):
     def setUp(self):
@@ -36,9 +37,9 @@ class AssetMappingTests(unittest.TestCase):
         with self.assertRaises(ValueError):app.map_user_assets({**self.payload,'revision':original})
         self.assertEqual(app.digest(),original)
     def test_endpoint_auth_csrf_and_success(self):
-        os.environ['APP_PASSWORD']='mapping-test-password';auth='Basic '+base64.b64encode(b'admin:mapping-test-password').decode();statuses=[]
-        env={'PATH_INFO':'/api/assets/map-user','REQUEST_METHOD':'POST','HTTP_AUTHORIZATION':auth}
+        os.environ['APP_PASSWORD']='mapping-test-password';token,session=auth_service.issue_session(app);auth=auth_service.COOKIE+'='+token;statuses=[]
+        env={'PATH_INFO':'/api/assets/map-user','REQUEST_METHOD':'POST','HTTP_COOKIE':auth}
         app.application(env,lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('403'))
-        body=json.dumps(self.payload).encode();out=app.application({**env,'HTTP_X_CSRF_TOKEN':app.SESSION,'CONTENT_LENGTH':str(len(body)),'wsgi.input':io.BytesIO(body)},lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('200'));self.assertEqual(json.loads(out[0])['mapped'],3)
+        body=json.dumps(self.payload).encode();out=app.application({**env,'HTTP_X_CSRF_TOKEN':session['csrf'],'CONTENT_LENGTH':str(len(body)),'wsgi.input':io.BytesIO(body)},lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('200'));self.assertEqual(json.loads(out[0])['mapped'],3)
 
 if __name__=='__main__':unittest.main()
