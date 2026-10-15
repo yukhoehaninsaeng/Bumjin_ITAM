@@ -144,6 +144,40 @@ def mutate(payload):
         return {'id':aid}
 
 
+def map_user_assets(payload):
+    """Bind selected name-only assets to one imported LDAP identity in one save."""
+    with LOCK:
+        old=digest()
+        if payload.get('revision')!=old:raise ValueError('다른 변경이 있습니다. 새로고침 후 매핑하세요.')
+        ids=payload.get('asset_ids');source=str(payload.get('source_name',''))
+        if not isinstance(ids,list) or not 1<=len(ids)<=500 or any(not isinstance(i,str) for i in ids) or len(set(ids))!=len(ids):
+            raise ValueError('매핑할 자산 1~500개를 중복 없이 선택하세요.')
+        if not source.strip():raise ValueError('기존 사용자 이름이 없습니다.')
+        w=openpyxl.load_workbook(FILE)
+        target=str(payload.get('target_directory_id',''))
+        users=[list(r) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=7,values_only=True) if target and value(r[3])==target]
+        if len(users)!=1 or not users[0][0]:raise ValueError('LDAP 계정을 다시 선택하세요. 사용자 목록을 동기화해야 할 수 있습니다.')
+        user=users[0];uid=value(user[0]);name=value(user[6]) or value(user[1]) or uid
+        if sum(value(r[0])==uid for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=1,values_only=True))!=1:
+            raise ValueError('LDAP 계정이 중복됩니다. 다시 동기화하세요.')
+        index={a['id']:a for a in assets(w)}
+        if any(i not in index for i in ids):raise ValueError('선택한 자산이 없습니다. 새로고침하세요.')
+        selected=[index[i] for i in ids]
+        if any(a['uid'] or a['user']!=source for a in selected):
+            raise ValueError('이미 매핑됐거나 사용자 이름이 다른 자산이 포함돼 있습니다. 새로고침 후 다시 선택하세요.')
+        timestamp=dt.datetime.now().astimezone().isoformat()
+        for before in selected:
+            division=before['division']+(':모니터' if before['category']=='모니터' else '')
+            sheet=w[CONFIG[division][0]];row=before['row']
+            literal(sheet[f'BA{row}'],uid);literal(sheet[f'D{row}'],name)
+            after={**before,'uid':uid,'user':name}
+            event=[timestamp,before['id'],'LDAP 일괄 매핑',json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False)]
+            r=w['앱_이력'].max_row+1
+            for c,v in enumerate(event,1):literal(w['앱_이력'].cell(r,c),v)
+        save(w,old)
+        return {'mapped':len(selected),'uid':uid,'directory_id':target,'name':name}
+
+
 MAINT_FIELDS={'vendor':'B','service':'C','quantity':'D','division':'E','period':'F','cost2024':'G','cost2025':'H','cost2026':'I','contact':'J','note':'L','end':'M','start':'N'}
 def maintenance_snapshot():
     with LOCK:
@@ -272,11 +306,12 @@ def application(env,start):
             if not any(a['id']==aid for a in snapshot()['assets']):return reply('404 Not Found',{})
             url=os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880').rstrip('/')+'/a/'+aid
             return reply('200 OK',qr_svg(url),'image/svg+xml')
-        if method=='POST' and path=='/api/assets':
+        if method=='POST' and path in ('/api/assets','/api/assets/map-user'):
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'세션이 변경됐습니다. 새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
-            if length>20000:return reply('413 Payload Too Large',{})
-            return reply('200 OK',mutate(json.loads(env['wsgi.input'].read(length))))
+            if length>100000:return reply('413 Payload Too Large',{})
+            payload=json.loads(env['wsgi.input'].read(length))
+            return reply('200 OK',map_user_assets(payload) if path.endswith('/map-user') else mutate(payload))
         if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/a/')):return reply('200 OK',(ROOT.parent/'public/index.html').read_bytes(),'text/html; charset=utf-8')
         return reply('404 Not Found',{})
     except (ValueError,KeyError) as e:return reply('409 Conflict',{'error':str(e)})
