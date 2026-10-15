@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 from wsgiref.simple_server import make_server
 import openpyxl
 import admin_service
+import organization_service
 import label_pdf
 from openpyxl.workbook.properties import CalcProperties
 
@@ -77,10 +78,10 @@ def assets(w):
 def snapshot():
     with LOCK:
         rev=digest(); w=openpyxl.load_workbook(FILE)
-        users=[dict(zip(['uid','name','email','directory_id','department','dn'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=6,values_only=True) if r[0]]
+        users=[dict(zip(['uid','name','email','directory_id','department','dn','description'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=7,values_only=True) if r[0]]
         history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=5,values_only=True)]
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
-                'organizations':[{'name':value(r[0]),'dn':value(r[1])} for r in w['앱_LDAP조직'].iter_rows(min_row=2,max_col=2,values_only=True) if r[0]] if '앱_LDAP조직' in w else [],'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
+                'organizations':[{'name':value(r[0]),'dn':value(r[1])} for r in w['앱_LDAP조직'].iter_rows(min_row=2,max_col=2,values_only=True) if r[0]] if '앱_LDAP조직' in w else [],'managed_organizations':organization_service.rows(w),'organization_history':organization_service.history(w),'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'), 'mode':'로컬 테스트 엑셀 · Drive 자동 반영 미연결'}
 
 
 def next_number(all_assets, division, category, device_type='Desktop'):
@@ -124,7 +125,7 @@ def mutate(payload):
         if uid:
             matches=[r for r in w['앱_LDAP사용자'].iter_rows(min_row=2,values_only=True) if value(r[0])==uid]
             if len(matches)!=1: raise ValueError('LDAP 계정 선택이 올바르지 않습니다.')
-            username=value(matches[0][1]) or uid
+            username=(value(matches[0][6]) if len(matches[0])>6 else '') or value(matches[0][1]) or uid
         if not before:
             for c in range(1,28):
                 src=s.cell(row-1,c); dst=s.cell(row,c)
@@ -247,13 +248,14 @@ def application(env,start):
             pdf=label_pdf.make_pdf([current[i] for i in ids],os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'),ROOT.parent/'public/qr-label-logo.svg',payload)
             return reply('200 OK',pdf,'application/pdf',[('Content-Disposition','attachment; filename="Bumjin_QRP-3990.pdf"')])
         if method=='GET' and path=='/api/admin':return reply('200 OK',{**admin_service.settings(__import__(__name__)),'csrf':SESSION})
-        if method=='POST' and path in ('/api/admin','/api/admin/ldap'):
+        if method=='POST' and path in ('/api/admin','/api/admin/ldap','/api/organizations'):
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>20000:return reply('413 Payload Too Large',{})
             payload=json.loads(env['wsgi.input'].read(length))
             try:
-                result=admin_service.synchronize(__import__(__name__),payload) if path.endswith('/ldap') else admin_service.update_settings(__import__(__name__),payload)
+                module=__import__(__name__)
+                result=organization_service.mutate(module,payload) if path=='/api/organizations' else admin_service.synchronize(module,payload) if path.endswith('/ldap') else admin_service.update_settings(module,payload)
             except ValueError:raise
             except Exception:return reply('400 Bad Request',{'error':'LDAP 연결 또는 설정 처리 실패. 주소·인증서·계정·검색 권한을 확인하세요.'})
             return reply('200 OK',result)
