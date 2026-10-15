@@ -2,6 +2,7 @@ import io, json, os, shutil, tempfile, unittest
 from pathlib import Path
 import openpyxl
 import app
+import auth_service
 
 class PilotTests(unittest.TestCase):
     def setUp(self):
@@ -48,8 +49,8 @@ class PilotTests(unittest.TestCase):
         app.application({'PATH_INFO':'/api/data'},lambda s,h:statuses.append(s))
         self.assertTrue(statuses[-1].startswith('401'))
         import base64
-        auth='Basic '+base64.b64encode(b'admin:test-password-123').decode()
-        env={'PATH_INFO':'/api/data','REQUEST_METHOD':'GET','HTTP_AUTHORIZATION':auth}
+        token,_=auth_service.issue_session(app);auth=auth_service.COOKIE+'='+token
+        env={'PATH_INFO':'/api/data','REQUEST_METHOD':'GET','HTTP_COOKIE':auth}
         out=app.application(env,lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('200'));self.assertIn('assets',json.loads(out[0]))
         app.application({**env,'PATH_INFO':'/api/assets','REQUEST_METHOD':'POST'},lambda s,h:statuses.append(s))
         self.assertTrue(statuses[-1].startswith('403'))
