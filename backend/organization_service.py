@@ -44,6 +44,35 @@ def write_rows(app,w,items):
         r=s.max_row+1
         for c,k in enumerate(('id','name','parent_id'),1):app.literal(s.cell(r,c),o[k])
 
+ASSET_ORGS='앱_자산조직'
+IMPORT_STATE='앱_조직가져오기'
+
+def asset_links(w):
+    if ASSET_ORGS not in w:return {}
+    return {str(r[0]):str(r[1]) for r in w[ASSET_ORGS].iter_rows(min_row=2,max_col=2,values_only=True) if r[0] and r[1]}
+
+def bootstrap_from_excel(app,w):
+    """One-time snapshot of original divisions/departments; stable links survive edits."""
+    if IMPORT_STATE in w and w[IMPORT_STATE]['A1'].value=='EXCEL_ORG_IMPORT_V1':return False
+    if IMPORT_STATE in w or ASSET_ORGS in w:raise ValueError('조직 가져오기용 시트가 이미 사용 중입니다. 관리자에게 확인하세요.')
+    all_assets=app.assets(w);paths=['BJC','BJE','BJM'];asset_paths={}
+    for a in all_assets:
+        division=a['division'];department=a['department'].strip()
+        parts=[x.strip() for x in department.split('/') if x.strip()]
+        if parts and parts[0]==division:parts=parts[1:]
+        # Do not guess hierarchy from spaces or department names.
+        if any(len(x)>80 for x in parts) or len(parts)>11:parts=[department[:80]]
+        path='/'.join([division]+parts);paths.append(path);asset_paths[a['id']]=path
+    import_paths(app,w,paths)
+    items=rows(w);lookup={path_for(items,o['id']):o['id'] for o in items}
+    s=w.create_sheet(ASSET_ORGS);s.append(['자산ID','조직ID'])
+    for aid,path in asset_paths.items():
+        r=s.max_row+1;app.literal(s.cell(r,1),aid);app.literal(s.cell(r,2),lookup[path])
+    marker=w.create_sheet(IMPORT_STATE);marker['A1']='EXCEL_ORG_IMPORT_V1'
+    marker['A2']=dt.datetime.now().astimezone().isoformat()
+    marker['A3']='사업부/부서 최초 가져오기 완료. 이후 조직도 편집은 원본 대장과 LDAP를 자동 변경하지 않습니다.'
+    return True
+
 def journal(app,event):
     # Durable recovery trail for cross-system writes; never contains credentials.
     p=app.FILE.parent/'ldap_department_audit.jsonl'
@@ -73,6 +102,7 @@ def mutate(app,payload):
             if operation=='delete':
                 if not any(o['id']==oid for o in items):raise ValueError('조직이 없습니다.')
                 if any(o['parent_id']==oid for o in items):raise ValueError('하위 조직을 먼저 이동하거나 삭제하세요.')
+                if oid in asset_links(w).values():raise ValueError('자산이 연결된 조직은 삭제할 수 없습니다. 이름 또는 상위 조직을 수정하세요.')
                 if any(str(r[0] or '')==before[oid] for r in w['앱_LDAP사용자'].iter_rows(min_row=2,min_col=5,max_col=5,values_only=True)):
                     raise ValueError('사용자가 있는 조직입니다. LDAP 소속을 먼저 변경하세요.')
                 items=[o for o in items if o['id']!=oid]
