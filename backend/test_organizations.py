@@ -48,6 +48,12 @@ class OrganizationTests(unittest.TestCase):
         self.assertEqual([r['status'] for r in result['results']],['success','failed']);self.assertEqual(app.snapshot()['users'][0]['department'],'BJE/IT');self.assertEqual(app.snapshot()['users'][1]['department'],'')
         admin_service.update_settings(app,{'operation':'ldap','ldap':{'allow_department_write':False}})
         with self.assertRaises(ValueError):self.mutate(operation='assign',id=oid,user_ids=['stable-2'])
+    def test_lost_ldap_response_is_unknown(self):
+        oid=self.create_tree();conn=FakeLDAP()
+        with patch.object(admin_service,'connect_directory',return_value=conn),patch.object(conn,'modify',side_effect=ldap3.core.exceptions.LDAPSocketReceiveError('connection lost')):
+            result=self.mutate(operation='assign',id=oid,user_ids=['stable-1'])
+        self.assertEqual(result['results'][0]['status'],'unknown');self.assertEqual(app.snapshot()['users'][0]['department'],'')
+
     def test_external_change_preflight(self):
         oid=self.create_tree();conn=FakeLDAP();conn.current['stable-2']='External'
         with patch.object(admin_service,'connect_directory',return_value=conn):
