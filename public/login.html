@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light">
+<title>로그인 | BUMJIN 자산관리</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100dvh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;color:#182230;background:linear-gradient(135deg,#f8fafc,#eef2f6);display:grid;place-items:center;padding:28px 18px}button,input{font:inherit}.loginCard{width:100%;max-width:440px;background:#fff;border:1px solid #e5e9ef;border-radius:20px;padding:40px;box-shadow:0 18px 55px #24334b12}.brand{display:flex;justify-content:center;margin:0 0 30px}.brand img{display:block;width:258px;max-width:100%;height:64px;object-fit:contain}h1{font-size:26px;letter-spacing:-.7px;text-align:center;margin:0 0 10px;line-height:1.3}.subtitle{text-align:center;font-size:14px;color:#667085;margin:0 0 30px;line-height:1.7}.field{margin:0 0 20px}.field>label{display:block;font-size:14px;font-weight:600;color:#344054;margin-bottom:9px}input{width:100%;height:48px;background:white;border:1px solid #d6dce5;border-radius:9px;padding:12px 14px;outline:none;color:#182230;transition:border-color .15s,box-shadow .15s}input::placeholder{color:#98a2b3}input:focus{border-color:#e42c50;box-shadow:0 0 0 3px #e42c5014}.passwordField{position:relative}.passwordField input{padding-right:62px}.reveal{position:absolute;right:8px;top:7px;height:34px;border:0;background:transparent;color:#667085;font-size:12px;cursor:pointer;padding:0 7px;border-radius:5px}.reveal:focus-visible{outline:2px solid #e42c50;outline-offset:1px}.submit{width:100%;height:49px;background:#dc263e;border:1px solid #dc263e;color:white;font-weight:700;border-radius:9px;cursor:pointer;transition:background .15s,transform .15s;margin-top:3px}.submit:hover{background:#bf1b32}.submit:active{transform:translateY(1px)}.submit:focus-visible{outline:3px solid #f4a7b5;outline-offset:3px}button:disabled{opacity:.65;cursor:wait}input:disabled{background:#f9fafb}.error{font-size:13px;line-height:1.7;color:#b42318;background:#fff4f2;border:1px solid #fee0da;border-radius:8px;padding:11px 12px;margin:0 0 18px;overflow-wrap:anywhere}.footer{border-top:1px solid #edf0f4;margin-top:30px;padding-top:23px;text-align:center}.footer strong{font-size:13px;font-weight:600;color:#667085}.footer p{font-size:11px;color:#98a2b3;margin:8px 0 0;line-height:1.6}[hidden]{display:none!important}@media(max-width:480px){body{padding:20px 14px}.loginCard{padding:32px 24px;border-radius:16px}.brand{margin-bottom:25px}.brand img{width:235px;height:58px}h1{font-size:24px}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="loginCard" aria-labelledby="loginTitle">
+<div class="brand"><img src="/login-logo.svg" alt="BUMJIN"></div>
+<h1 id="loginTitle">로그인</h1>
+<p class="subtitle">BUMJIN IT 자산관리<br>관리자 계정으로 로그인하세요.</p>
+<form id="loginForm">
+<div class="field"><label for="username">아이디</label><input id="username" name="username" placeholder="아이디 입력" autocomplete="username" maxlength="128" required autofocus></div>
+<div class="field"><label for="password">비밀번호</label><div class="passwordField"><input id="password" name="password" type="password" placeholder="비밀번호 입력" autocomplete="current-password" maxlength="256" required><button type="button" id="revealPassword" class="reveal" aria-label="비밀번호 표시" aria-pressed="false">보기</button></div></div>
+<p id="loginError" class="error" role="alert" hidden></p>
+<button class="submit" id="loginButton" type="submit" disabled>로그인</button>
+</form>
+<footer class="footer"><strong>BUMJIN IT Asset Management</strong><p>자산 · 사용자 · 소프트웨어 통합 관리</p></footer>
+</main>
+<script>
+const form=document.getElementById('loginForm'),button=document.getElementById('loginButton'),error=document.getElementById('loginError'),password=document.getElementById('password'),reveal=document.getElementById('revealPassword');let loginCsrf='';
+function showError(message){error.textContent=message;error.hidden=false}
+async function prepareLogin(){const r=await fetch('/api/auth/csrf',{cache:'no-store'});const result=await r.json();if(!r.ok)throw Error(result.error||'로그인 화면을 준비하지 못했습니다.');loginCsrf=result.csrf}
+reveal.onclick=()=>{const show=password.type==='password';password.type=show?'text':'password';reveal.textContent=show?'숨기기':'보기';reveal.setAttribute('aria-label',show?'비밀번호 숨기기':'비밀번호 표시');reveal.setAttribute('aria-pressed',String(show))};
+form.onsubmit=async e=>{e.preventDefault();if(button.disabled)return;button.disabled=true;button.textContent='로그인 중…';error.hidden=true;try{if(!loginCsrf)await prepareLogin();const username=document.getElementById('username').value.trim(),secret=password.value;const next=new URLSearchParams(location.search).get('next')||'/';document.getElementById('username').disabled=true;password.disabled=true;reveal.disabled=true;const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':loginCsrf},body:JSON.stringify({username,password:secret,next})});const result=await r.json();if(!r.ok){if(r.status===403){loginCsrf='';await prepareLogin()}throw Error(result.error||'로그인하지 못했습니다.')}password.value='';location.replace(result.next||'/')}catch(e){showError(e.message||'서버에 연결하지 못했습니다. 다시 시도하세요.')}finally{button.disabled=false;button.textContent='로그인';document.getElementById('username').disabled=false;password.disabled=false;reveal.disabled=false}};
+prepareLogin().catch(e=>showError(e.message)).finally(()=>{button.disabled=false});
+</script>
+</body></html>
