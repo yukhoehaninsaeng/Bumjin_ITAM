@@ -133,7 +133,7 @@ def mutate(app,payload):
                 conn.search(cfg['user_base'] or cfg['base_dn'],filt,attributes=ldap3.ALL_ATTRIBUTES)
                 entries=[e for e in conn.response if e['type']=='searchResEntry']
                 if conn.result.get('result')!=0 or len(entries)!=1:raise ValueError('LDAP 사용자 한 명을 조회하지 못했습니다.')
-                allowed={'uid','cn','description','displayname','mail','departmentnumber','department','ou','employeenumber'}
+                allowed={'uid','cn','description','gecos','displayname','mail','departmentnumber','department','ou','employeenumber'}
                 return {'attributes':{k:v for k,v in entries[0]['attributes'].items() if k.lower() in allowed}}
             except ValueError:raise
             except Exception as e:raise ValueError(admin_service.ldap_error(e)) from None
