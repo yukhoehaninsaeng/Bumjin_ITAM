@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 import ldap3
 import app, admin_service, organization_service as org
+import auth_service
 
 class FakeLDAP:
     def __init__(self, fail=0):
@@ -66,8 +67,8 @@ class OrganizationTests(unittest.TestCase):
         with self.assertRaises(ValueError):org.mutate(app,{'operation':'create','name':'X','revision':'stale'})
         with self.assertRaises(ValueError):admin_service.update_settings(app,{'operation':'ldap','ldap':{'department_attr':'userPassword','allow_department_write':True}})
     def test_http_csrf(self):
-        os.environ['APP_PASSWORD']='test-admin-password';auth='Basic '+base64.b64encode(b'admin:test-admin-password').decode();statuses=[]
-        app.application({'PATH_INFO':'/api/organizations','REQUEST_METHOD':'POST','HTTP_AUTHORIZATION':auth},lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('403'))
+        os.environ['APP_PASSWORD']='test-admin-password';token,_=auth_service.issue_session(app);auth=auth_service.COOKIE+'='+token;statuses=[]
+        app.application({'PATH_INFO':'/api/organizations','REQUEST_METHOD':'POST','HTTP_COOKIE':auth},lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('403'))
     def test_import_paths(self):
         w=__import__('openpyxl').load_workbook(app.FILE);before=len(org.rows(w));org.import_paths(app,w,['BJE/IT/Support','BJE/IT/Support']);items=org.rows(w);self.assertEqual(len(items),before+2);self.assertEqual(org.path_for(items,items[-1]['id']),'BJE/IT/Support')
     def test_fetch_reads_description_and_department(self):
