@@ -366,3 +366,26 @@ NAS에는 `backend/app.py`와 `public/index.html`을 함께 업데이트하고 �
 - 자산 현황의 로컬 테스트·Drive 미연결 안내 문구는 제거했습니다. 오류 발생 시에는 오류 메시지만 표시합니다.
 
 NAS 적용 파일: `backend/organization_service.py`, `backend/app.py`, `public/index.html`. 기존 데이터 폴더와 Excel을 유지한 채 파일을 갱신하고 Docker 이미지를 재빌드한 뒤 컨테이너를 재생성합니다. 브라우저는 강력 새로고침으로 갱신하세요.
+
+
+## 회사 로고 로그인 페이지와 세션 인증
+
+`/login`에서 회사 로고, 아이디·비밀번호 입력창, 빨간 로그인 버튼을 제공합니다. 브라우저의 HTTP Basic 팝업 인증을 제거했으며 기존 관리자 계정 `admin`과 현재 관리자 비밀번호를 그대로 사용합니다. 회원가입·게스트 접근·LDAP 개인 로그인 기능은 포함하지 않습니다.
+
+- 인증 전 자산 현황·관리자·사용자·QR 주소로 접근하면 로그인 페이지로 이동합니다. 로그인 후에는 원래 QR 자산 또는 요청했던 페이지로 돌아갑니다.
+- 인증되지 않은 API는 `401` JSON을 반환하며 `WWW-Authenticate` 헤더를 보내지 않습니다.
+- 세션은 서버 메모리에 8시간 유지하며, 브라우저에는 HttpOnly·SameSite=Lax 쿠키만 저장합니다. 비밀번호를 브라우저 저장소에 저장하지 않습니다.
+- HTTPS 직접 접속 또는 HTTPS `PUBLIC_BASE_URL` 설정 시 Secure 쿠키를 사용합니다. 설정 주소의 프로토콜을 실제 접속 주소와 일치시키세요.
+- 메뉴 하단의 **로그아웃**으로 현재 세션을 종료합니다. 관리자 비밀번호 변경 시 기존 세션은 무효화됩니다. 서버 재시작 시에도 다시 로그인합니다.
+- 로그인 전용 CSRF 토큰과 로그인 세션별 CSRF 토큰을 분리합니다. 로그인 실패가 같은 접속 주소에서 5분 내 8회 누적되면 일시 제한합니다.
+- 기존 Basic Authorization 헤더만으로 API에 접근하는 방식은 더 이상 지원하지 않습니다. 브라우저는 로그인 폼을 사용합니다.
+
+NAS 업데이트 파일:
+```text
+backend/auth_service.py  ← 새 파일
+backend/admin_service.py
+backend/app.py
+public/login.html       ← 새 파일
+public/index.html
+```
+로고는 기존 `public/qr-label-logo.svg`를 그대로 사용합니다. 해당 파일도 유지해야 합니다. 기존 데이터·Excel·환경설정을 보존하고 이미지를 재빌드한 뒤 컨테이너를 재생성하세요. 적용 후 `http://YOUR_NAS_IP:1880/login`에서 로그인합니다.
