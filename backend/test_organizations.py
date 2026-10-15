@@ -27,7 +27,7 @@ class OrganizationTests(unittest.TestCase):
     def tearDown(self):app.FILE=self.previous;admin_service.LDAP_PASSWORD='';self.temp.cleanup()
     def mutate(self,**p):return org.mutate(app,{**p,'revision':app.digest()})
     def create_tree(self):
-        root=self.mutate(operation='create',name='BJE')['id'];return self.mutate(operation='create',name='IT',parent_id=root)['id']
+        root=next(o['id'] for o in app.snapshot()['managed_organizations'] if o['name']=='BJE' and not o['parent_id']);return self.mutate(operation='create',name='IT',parent_id=root)['id']
     def test_description_and_sync_preserves_tree(self):
         self.assertEqual(app.snapshot()['users'][0]['description'],'Person One');oid=self.create_tree()
         with patch.object(admin_service,'fetch_directory',return_value=(self.users,[])):admin_service.synchronize(app,{'revision':app.digest()})
@@ -40,7 +40,7 @@ class OrganizationTests(unittest.TestCase):
         self.assertEqual(result['results'][0]['status'],'success');self.assertEqual(conn.calls[0][1],{'departmentNumber':[(ldap3.MODIFY_REPLACE,['BJE/IT'])]});self.assertTrue(conn.closed)
         snap=app.snapshot();self.assertEqual(snap['users'][0]['department'],'BJE/IT');self.assertEqual(snap['users'][1]['department'],'')
         audit=(app.FILE.parent/'ldap_department_audit.jsonl').read_text();self.assertNotIn('test-only',audit)
-        with self.assertRaises(ValueError):self.mutate(operation='update',id=oid,name='New IT',parent_id=snap['managed_organizations'][0]['id'])
+        with self.assertRaises(ValueError):self.mutate(operation='update',id=oid,name='New IT',parent_id=next(o['id'] for o in snap['managed_organizations'] if o['name']=='BJE' and not o['parent_id']))
         with self.assertRaises(ValueError):self.mutate(operation='delete',id=oid)
     def test_partial_failure_and_disable(self):
         oid=self.create_tree();conn=FakeLDAP(fail=2)
@@ -60,7 +60,7 @@ class OrganizationTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.mutate(operation='assign',id=oid,user_ids=['stable-1','stable-2'])
         self.assertFalse(conn.calls)
     def test_cycle_duplicate_revision_and_guard(self):
-        oid=self.create_tree();root=app.snapshot()['managed_organizations'][0]['id']
+        oid=self.create_tree();root=next(o['id'] for o in app.snapshot()['managed_organizations'] if o['name']=='BJE' and not o['parent_id'])
         for p in [dict(operation='update',id=root,name='BJE',parent_id=oid),dict(operation='create',name='IT',parent_id=root),dict(operation='create',name='bad/name')]:
             with self.assertRaises(ValueError):self.mutate(**p)
         with self.assertRaises(ValueError):org.mutate(app,{'operation':'create','name':'X','revision':'stale'})
@@ -69,7 +69,7 @@ class OrganizationTests(unittest.TestCase):
         os.environ['APP_PASSWORD']='test-admin-password';auth='Basic '+base64.b64encode(b'admin:test-admin-password').decode();statuses=[]
         app.application({'PATH_INFO':'/api/organizations','REQUEST_METHOD':'POST','HTTP_AUTHORIZATION':auth},lambda s,h:statuses.append(s));self.assertTrue(statuses[-1].startswith('403'))
     def test_import_paths(self):
-        w=__import__('openpyxl').load_workbook(app.FILE);org.import_paths(app,w,['BJE/IT/Support','BJE/IT/Support']);items=org.rows(w);self.assertEqual(len(items),3);self.assertEqual(org.path_for(items,items[-1]['id']),'BJE/IT/Support')
+        w=__import__('openpyxl').load_workbook(app.FILE);before=len(org.rows(w));org.import_paths(app,w,['BJE/IT/Support','BJE/IT/Support']);items=org.rows(w);self.assertEqual(len(items),before+2);self.assertEqual(org.path_for(items,items[-1]['id']),'BJE/IT/Support')
     def test_fetch_reads_description_and_department(self):
         from types import SimpleNamespace
         conn=FakeLDAP()
