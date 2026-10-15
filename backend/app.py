@@ -1,10 +1,11 @@
 """Bumjin Excel-backed pilot. Single process, no database server."""
 import signal, re, base64, copy, datetime as dt, hashlib, hmac, io, json, os, secrets, shutil, threading, uuid
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote, parse_qs
 from wsgiref.simple_server import make_server
 import openpyxl
 import admin_service
+import auth_service
 import organization_service
 import label_pdf
 from openpyxl.workbook.properties import CalcProperties
@@ -264,16 +265,37 @@ def application(env,start):
     gateway=os.environ.get('BACKEND_GATEWAY_TOKEN','')
     if gateway and not hmac.compare_digest(env.get('HTTP_X_GATEWAY_TOKEN',''),gateway):
         return reply('403 Forbidden',{'error':'게이트웨이 인증이 필요합니다.'})
-    auth=env.get('HTTP_AUTHORIZATION','')
-    try:
-        login=base64.b64decode(auth[6:],validate=True).decode().split(':',1)
-        valid=auth.startswith('Basic ') and len(login)==2 and login[0]=='admin' and admin_service.password_valid(__import__(__name__),login[1])
-    except Exception:valid=False
-    if not valid:return reply('401 Unauthorized',{'error':'관리자 로그인이 필요합니다.'},extra=[('WWW-Authenticate','Basic realm="Bumjin Assets"')])
-    path=env.get('PATH_INFO','/'); method=env.get('REQUEST_METHOD','GET')
+    path=env.get('PATH_INFO','/');method=env.get('REQUEST_METHOD','GET');module=__import__(__name__)
+    session=auth_service.current(module,env)
+    if method=='GET' and path=='/login-logo.svg':
+        return reply('200 OK',(ROOT.parent/'public/qr-label-logo.svg').read_bytes(),'image/svg+xml')
+    if method=='GET' and path=='/api/auth/csrf':
+        body,cookie=auth_service.issue_preauth(env);return reply('200 OK',body,extra=[cookie])
+    if method=='POST' and path=='/api/auth/login':
+        try:
+            length=int(env.get('CONTENT_LENGTH') or '0')
+            if not 0<length<=4096:return reply('400 Bad Request',{'error':'로그인 요청이 올바르지 않습니다.'})
+            payload=json.loads(env['wsgi.input'].read(length))
+            if not isinstance(payload,dict):raise ValueError()
+        except (ValueError,KeyError):return reply('400 Bad Request',{'error':'로그인 요청이 올바르지 않습니다.'})
+        code,body,headers=auth_service.login(module,env,payload);return reply(code,body,extra=headers)
+    if method=='GET' and path=='/login':
+        if session:
+            target=auth_service.safe_next(parse_qs(env.get('QUERY_STRING','')).get('next',['/'])[0])
+            return reply('303 See Other',b'',extra=[('Location',target)])
+        return reply('200 OK',(ROOT.parent/'public/login.html').read_bytes(),'text/html; charset=utf-8')
+    if not session:
+        if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/a/')):
+            return reply('303 See Other',b'',extra=[('Location','/login?next='+quote(path,safe=''))])
+        return reply('401 Unauthorized',{'error':'로그인이 필요합니다.'})
+    request_csrf=session['csrf']
+    if method=='POST' and path=='/api/auth/logout':
+        if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침 후 다시 시도하세요.'})
+        auth_service.remove_session(env)
+        return reply('200 OK',{'ok':True},extra=[auth_service.cookie_header(env,auth_service.COOKIE,'',0)])
     try:
         if method=='POST' and path=='/api/labels/pdf':
-            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>100000:return reply('413 Payload Too Large',{})
             payload=json.loads(env['wsgi.input'].read(length));ids=payload.get('ids',[])
@@ -282,9 +304,9 @@ def application(env,start):
             if any(i not in current for i in ids):raise ValueError('선택한 자산이 없습니다. 새로고침하세요.')
             pdf=label_pdf.make_pdf([current[i] for i in ids],os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880'),ROOT.parent/'public/qr-label-logo.svg',payload)
             return reply('200 OK',pdf,'application/pdf',[('Content-Disposition','attachment; filename="Bumjin_QRP-3990.pdf"')])
-        if method=='GET' and path=='/api/admin':return reply('200 OK',{**admin_service.settings(__import__(__name__)),'csrf':SESSION})
+        if method=='GET' and path=='/api/admin':return reply('200 OK',{**admin_service.settings(__import__(__name__)),'csrf':request_csrf})
         if method=='POST' and path in ('/api/admin','/api/admin/ldap','/api/organizations'):
-            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>20000:return reply('413 Payload Too Large',{})
             payload=json.loads(env['wsgi.input'].read(length))
@@ -294,13 +316,13 @@ def application(env,start):
             except ValueError:raise
             except Exception:return reply('400 Bad Request',{'error':'LDAP 연결 또는 설정 처리 실패. 주소·인증서·계정·검색 권한을 확인하세요.'})
             return reply('200 OK',result)
-        if method=='GET' and path=='/api/maintenance':return reply('200 OK',maintenance_snapshot())
+        if method=='GET' and path=='/api/maintenance':return reply('200 OK',{**maintenance_snapshot(),'csrf':request_csrf})
         if method=='POST' and path=='/api/maintenance':
-            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'새로고침하세요.'})
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>20000:return reply('413 Payload Too Large',{})
             return reply('200 OK',mutate_maintenance(json.loads(env['wsgi.input'].read(length))))
-        if method=='GET' and path=='/api/data':return reply('200 OK',{**snapshot(),'csrf':SESSION})
+        if method=='GET' and path=='/api/data':return reply('200 OK',{**snapshot(),'csrf':request_csrf})
         if method=='GET' and path=='/api/export':return reply('200 OK',FILE.read_bytes(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', [('Content-Disposition','attachment; filename="Bumjin_IT_assets.xlsx"')])
         if method=='GET' and path.startswith('/qr/'):
             aid=path.split('/')[-1]
@@ -308,7 +330,7 @@ def application(env,start):
             url=os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880').rstrip('/')+'/a/'+aid
             return reply('200 OK',qr_svg(url),'image/svg+xml')
         if method=='POST' and path in ('/api/assets','/api/assets/map-user'):
-            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),SESSION):return reply('403 Forbidden',{'error':'세션이 변경됐습니다. 새로고침하세요.'})
+            if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'세션이 변경됐습니다. 새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>100000:return reply('413 Payload Too Large',{})
             payload=json.loads(env['wsgi.input'].read(length))
