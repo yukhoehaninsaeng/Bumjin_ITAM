@@ -72,20 +72,32 @@ def connect_directory(app):
         return ldap3.Connection(server,user=cfg['bind_dn'],password=password,auto_bind=True,receive_timeout=15,raise_exceptions=True)
     except Exception as e:raise ValueError(ldap_error(e)) from None
 
+def directory_text(attributes, key):
+    value=next((v for k,v in attributes.items() if k.lower()==str(key).lower()), '')
+    if isinstance(value,(list,tuple)):value=value[0] if value else ''
+    return str(value or '').strip()
+
+def directory_person_name(attributes, cfg, uid):
+    for key in (cfg.get('description_attr') or 'description', 'description', 'gecos'):
+        value=directory_text(attributes,key)
+        if value and value!=uid:return value
+    return ''
+
 def fetch_directory(app):
     cfg=settings(app)['ldap'];conn=connect_directory(app)
     def first(v):return str(v[0] if isinstance(v,list) and v else v or '')
     try:
-        attrs=list({cfg['uid_attr'],cfg['name_attr'] or cfg['uid_attr'],cfg['id_attr'],'mail',cfg['description_attr'] or 'description'}|({cfg['department_attr']} if cfg['department_attr'] else set()))
+        attrs=list({cfg['uid_attr'],cfg['name_attr'] or cfg['uid_attr'],cfg['id_attr'],'mail','description',cfg['description_attr'] or 'description'}|({cfg['department_attr']} if cfg['department_attr'] else set()))
+        if 'posixaccount' in cfg['user_filter'].lower() or (cfg['description_attr'] or '').lower()=='gecos':attrs=list(set(attrs)|{'gecos'})
         entries=list(conn.extend.standard.paged_search(cfg['user_base'] or cfg['base_dn'],cfg['user_filter'],attributes=attrs,paged_size=100,generator=True))
         if conn.result.get('result')!=0:raise ValueError('LDAP 사용자 검색 실패. 기존 목록을 유지합니다.')
         users=[];seen=set();ids=set()
         for e in entries:
             if e['type']!='searchResEntry':continue
-            a=e['attributes'];uid=first(a.get(cfg['uid_attr']));stable=first(a.get(cfg['id_attr']))
+            a=e['attributes'];uid=directory_text(a,cfg['uid_attr']);stable=directory_text(a,cfg['id_attr'])
             if not uid or not stable or uid in seen or stable in ids:raise ValueError('LDAP UID 또는 고유 ID가 없거나 중복됩니다.')
             seen.add(uid);ids.add(stable)
-            users.append([uid,first(a.get(cfg['name_attr'])) or uid,first(a.get('mail')),stable,first(a.get(cfg['department_attr'])) if cfg['department_attr'] else '',e['dn'],first(a.get(cfg['description_attr'] or 'description'))])
+            users.append([uid,first(a.get(cfg['name_attr'])) or uid,first(a.get('mail')),stable,first(a.get(cfg['department_attr'])) if cfg['department_attr'] else '',e['dn'],directory_person_name(a,cfg,uid)])
         if not users:raise ValueError('조회된 사용자가 없습니다. 기존 목록 유지.')
         orgs=list(conn.extend.standard.paged_search(cfg['base_dn'],'(objectClass=organizationalUnit)',attributes=['ou'],paged_size=100,generator=True))
         if conn.result.get('result')!=0:raise ValueError('LDAP 조직 검색 실패. Base DN과 조회 권한을 확인하세요.')
@@ -113,4 +125,4 @@ def synchronize(app,payload):
         import organization_service
         organization_service.import_paths(app,w,[row[4] for row in users])
         app.save(w,old)
-    return {'users':len(users),'organizations':len(orgs)}
+    return {'users':len(users),'organizations':len(orgs),'missing_names':sum(len(row)<7 or not row[6] for row in users)}
