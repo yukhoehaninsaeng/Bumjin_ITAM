@@ -2,6 +2,7 @@ import base64, io, json, os, shutil, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 import app
+import auth_service
 import admin_service
 
 class AdminTests(unittest.TestCase):
@@ -26,17 +27,18 @@ class AdminTests(unittest.TestCase):
                     with self.assertRaises(ValueError):admin_service.synchronize(app,{'revision':original})
                 self.assertEqual(app.digest(),original)
                 with self.assertRaises(ValueError):admin_service.update_settings(app,{'operation':'password','current_password':'wrong','new_password':'new-password-123'})
+                old_token,_=auth_service.issue_session(app)
                 admin_service.update_settings(app,{'operation':'password','current_password':'initial-password-123','new_password':'new-password-123'})
                 self.assertTrue(admin_service.password_valid(app,'new-password-123'));self.assertFalse(admin_service.password_valid(app,'initial-password-123'))
                 self.assertNotIn('new-password-123',admin_service.config_path(app).read_text())
                 statuses=[]
-                old='Basic '+base64.b64encode(b'admin:initial-password-123').decode()
-                app.application({'PATH_INFO':'/api/admin','REQUEST_METHOD':'GET','HTTP_AUTHORIZATION':old},lambda s,h:statuses.append(s))
+                old=auth_service.COOKIE+'='+old_token
+                app.application({'PATH_INFO':'/api/admin','REQUEST_METHOD':'GET','HTTP_COOKIE':old},lambda s,h:statuses.append(s))
                 self.assertTrue(statuses[-1].startswith('401'))
-                auth='Basic '+base64.b64encode(b'admin:new-password-123').decode()
-                response=app.application({'PATH_INFO':'/api/admin','REQUEST_METHOD':'GET','HTTP_AUTHORIZATION':auth},lambda s,h:statuses.append(s))
+                token,_=auth_service.issue_session(app);auth=auth_service.COOKIE+'='+token
+                response=app.application({'PATH_INFO':'/api/admin','REQUEST_METHOD':'GET','HTTP_COOKIE':auth},lambda s,h:statuses.append(s))
                 self.assertTrue(statuses[-1].startswith('200'));self.assertNotIn('password_hash',json.loads(response[0]))
-                app.application({'PATH_INFO':'/api/admin','REQUEST_METHOD':'POST','HTTP_AUTHORIZATION':auth},lambda s,h:statuses.append(s))
+                app.application({'PATH_INFO':'/api/admin','REQUEST_METHOD':'POST','HTTP_COOKIE':auth},lambda s,h:statuses.append(s))
                 self.assertTrue(statuses[-1].startswith('403'))
             finally:app.FILE=previous;admin_service.LDAP_PASSWORD=''
 if __name__=='__main__':unittest.main()
