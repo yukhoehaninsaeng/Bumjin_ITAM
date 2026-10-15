@@ -170,9 +170,44 @@ const count=()=>{$('mappingCount').textContent=checks().filter(c=>c.checked).len
 const renderOptions=()=>{const previous=$('mappingTarget').value,q=$('mappingQuery').value.toLowerCase();const users=data.users.filter(u=>u.directory_id&&[u.uid,u.description,u.email,u.department].join(' ').toLowerCase().includes(q));$('mappingTarget').innerHTML='<option value="">LDAP 계정을 선택하세요</option>'+users.map(u=>'<option value="'+esc(u.directory_id)+'">'+esc(u.uid+' · '+(directoryPersonName(u))+' · '+(u.department||'부서 미배정')+' · '+(u.email||''))+'</option>').join('');if(users.some(u=>u.directory_id===previous))$('mappingTarget').value=previous};
 renderOptions();count();$('mappingQuery').oninput=renderOptions;checks().forEach(c=>c.onchange=count);
 $('mappingSelectAll').onclick=()=>{checks().forEach(c=>c.checked=true);count()};$('mappingClear').onclick=()=>{checks().forEach(c=>c.checked=false);count()};
-$('mappingPreview').onclick=()=>{const target=data.users.find(u=>u.directory_id===$('mappingTarget').value),ids=checks().filter(c=>c.checked).map(c=>c.dataset.mapAsset);if(!target||!ids.length||ids.length>500){$('mappingError').textContent='LDAP 계정과 매핑할 자산 1~500개를 선택하세요.';return}
-const selected=assets.filter(a=>ids.includes(a.id)),revision=data.revision;$('mappingPreviewContent').innerHTML='<p><b>'+esc(source.name)+'</b>의 선택 자산 '+selected.length+'개를 <b>'+esc(target.uid+' · '+directoryPersonName(target))+'</b>에 연결합니다.</p><p>자산의 LDAP 계정과 사용자 표시이름을 갱신합니다. 상태·부서·장비 사양·SW 기재값은 유지됩니다. NAS LDAP 계정 자체는 수정하지 않습니다.</p><div class="tablewrap"><table><thead><tr><th>관리번호</th><th>법인 / 부서</th><th>장비</th></tr></thead><tbody>'+selected.map(a=>'<tr><td data-label="관리번호">'+esc(a.number)+'</td><td data-label="법인 / 부서">'+esc(a.division+' / '+a.department)+'</td><td data-label="장비">'+esc(a.category)+'</td></tr>').join('')+'</tbody></table></div>';
-$('mappingApplyResult').textContent='';$('applyAssetMapping').disabled=false;$('applyAssetMapping').onclick=async()=>{const button=$('applyAssetMapping');button.disabled=true;try{const r=await adminRequest('/api/assets/map-user',{source_name:source.name,target_directory_id:target.directory_id,asset_ids:ids,revision});$('assetMappingDialog').close();await load();const user=data.users.find(u=>u.directory_id===r.directory_id)||target;showUserAssets(user);toast(r.mapped+'개 자산 LDAP 매핑 완료')}catch(e){$('mappingApplyResult').textContent=e.message;button.disabled=false}};$('assetMappingDialog').showModal()};
+$('mappingPreview').onclick=async()=>{
+const target=data.users.find(u=>u.directory_id===$('mappingTarget').value),ids=checks().filter(c=>c.checked).map(c=>c.dataset.mapAsset);
+if(!target||!ids.length||ids.length>500){$('mappingError').textContent='LDAP 계정과 매핑할 자산 1~500개를 선택하세요.';return}
+const selected=assets.filter(a=>ids.includes(a.id)),revision=data.revision,previewButton=$('mappingPreview');previewButton.disabled=true;
+try{
+const response=await fetch('/api/admin');if(!response.ok)throw Error('LDAP 설정을 조회하지 못했습니다.');const settings=await response.json(),cfg=settings.ldap||{};
+if(!cfg.allow_department_write)throw Error('관리자 설정에서 LDAP 부서 쓰기를 활성화한 뒤 매핑하세요. 자산 매핑과 LDAP 부서를 함께 저장합니다.');
+if(!['departmentnumber','department','ou'].includes(String(cfg.department_attr||'').toLowerCase()))throw Error('관리자 설정에서 실제 NAS 부서 속성을 지정하세요. 선택 사용자 LDAP 속성 확인으로 확인할 수 있습니다.');
+if(!settings.bind_password_available)throw Error('관리자 설정에서 Bind 비밀번호를 입력하고 저장한 뒤 매핑하세요.');
+const orgs=data.managed_organizations||[],links=data.asset_organizations||{};
+const orgForAsset=a=>links[a.id]||orgs.find(o=>orgPath(o.id)===[a.division,a.department].filter(Boolean).join('/'))?.id||'';
+const candidates=[...new Set(selected.map(orgForAsset))],suggested=candidates.length===1?candidates[0]:'';
+$('mappingPreviewContent').innerHTML='<p><b>'+esc(source.name)+'</b>의 선택 자산 '+selected.length+'개를 <b>'+esc(target.uid+' · '+directoryPersonName(target))+'</b>에 연결합니다.</p><label>LDAP에 저장할 소속 조직<select id="mappingOrganization"><option value="">조직을 선택하세요</option>'+orgs.map(o=>'<option value="'+esc(o.id)+'">'+esc(orgPath(o.id))+'</option>').join('')+'</select></label><p>현재 LDAP 부서: <b>'+esc(target.department||'미배정')+'</b><br>저장 속성: <b>'+esc(cfg.department_attr)+'</b></p><p id="mappingDepartmentSummary"></p><p>자산 계정 매핑 후 선택한 조직 경로를 LDAP 부서에 저장합니다. 기존 LDAP 부서가 있으면 선택한 조직으로 변경됩니다.</p><div class="tablewrap"><table><thead><tr><th>관리번호</th><th>법인 / 부서</th><th>장비</th></tr></thead><tbody>'+selected.map(a=>'<tr><td data-label="관리번호">'+esc(a.number)+'</td><td data-label="법인 / 부서">'+esc(a.division+' / '+a.department)+'</td><td data-label="장비">'+esc(a.category)+'</td></tr>').join('')+'</tbody></table></div>';
+$('mappingOrganization').value=suggested;
+const updateSummary=()=>{$('mappingDepartmentSummary').textContent=$('mappingOrganization').value?'저장할 LDAP 부서: '+orgPath($('mappingOrganization').value):'선택 자산의 조직이 서로 다르거나 연결된 조직이 없습니다. 실제 소속 조직을 선택하세요.';};
+$('mappingOrganization').onchange=updateSummary;updateSummary();
+$('mappingApplyResult').textContent='';$('applyAssetMapping').textContent='자산 매핑 + LDAP 부서 저장';$('applyAssetMapping').disabled=false;
+$('applyAssetMapping').onclick=async()=>{
+const button=$('applyAssetMapping'),organizationId=$('mappingOrganization').value;
+if(!organizationId){$('mappingApplyResult').textContent='LDAP에 저장할 조직을 선택하세요.';return}
+button.disabled=true;$('mappingOrganization').disabled=true;let mapped=null,stage='mapping';
+try{
+$('mappingApplyResult').textContent='자산 계정 매핑 중…';
+mapped=await adminRequest('/api/assets/map-user',{source_name:source.name,target_directory_id:target.directory_id,asset_ids:ids,revision});
+stage='department';await load();
+$('mappingApplyResult').textContent=mapped.mapped+'개 자산 매핑 완료. LDAP 부서 저장 중…';
+const result=await adminRequest('/api/organizations',{operation:'assign',id:organizationId,user_ids:[target.directory_id],revision:data.revision});
+const entry=(result.results||[]).find(x=>x.directory_id===target.directory_id);
+if(result.warning||result.unprocessed||!entry||!['success','unchanged'].includes(entry.status))throw Error(result.warning||entry?.message||'LDAP 부서 저장 결과를 확인하지 못했습니다.');
+await load();$('assetMappingDialog').close();showUserAssets(data.users.find(u=>u.directory_id===target.directory_id)||target);toast(mapped.mapped+'개 자산 매핑 및 LDAP 부서 저장 완료');
+}catch(e){
+$('mappingApplyResult').textContent=stage==='department'?'자산 '+mapped.mapped+'개 매핑은 완료됐지만 LDAP 부서 저장은 완료하지 못했습니다. '+e.message+' 사용자·조직에서 해당 계정을 선택해 실제 부서를 확인한 뒤 부서 배정을 진행하세요.':'자산 매핑을 완료하지 못했습니다. '+e.message+' LDAP 부서 저장은 실행하지 않았습니다. 새로고침 후 매핑 상태를 확인하세요.';
+try{await load();showUserAssets(data.users.find(u=>u.directory_id===target.directory_id)||target)}catch(_){}
+}
+};
+$('assetMappingDialog').showModal();
+}catch(e){$('mappingError').textContent=e.message}finally{previewButton.disabled=false}
+};
 }
 
 function bindSelection(){const checks=$('rows').querySelectorAll('[data-select]');checks.forEach(c=>c.onchange=()=>{c.checked?selectedAssets.add(c.dataset.select):selectedAssets.delete(c.dataset.select);updateSelectionCount()});updateSelectionCount()}
