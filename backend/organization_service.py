@@ -143,7 +143,7 @@ def mutate(app,payload):
                     ok=conn.modify(dn,{attr:[(ldap3.MODIFY_REPLACE,[path] if path else [])]})
                     if not ok or conn.result.get('result')!=0:raise ValueError('LDAP 수정 거부: '+str(conn.result.get('description','unknown')))
                 except Exception as e:
-                    status='failed' if isinstance(e,(ValueError,ldap3.core.exceptions.LDAPExceptionResult)) else 'unknown'
+                    status='failed' if isinstance(e,(ValueError,ldap3.core.exceptions.LDAPOperationResult)) else 'unknown'
                     message=str(e) if isinstance(e,ValueError) else admin_service.ldap_error(e)
                     if status=='unknown':message+=' 수정 응답을 확인하지 못했습니다. 다시 동기화해서 실제 부서를 확인하세요.'
                     journal(app,{**event,'status':status,'message':message})
