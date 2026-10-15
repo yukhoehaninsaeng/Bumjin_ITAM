@@ -19,7 +19,7 @@ def password_valid(app, password):
         digest=hashlib.pbkdf2_hmac('sha256',password.encode(),bytes.fromhex(cfg['salt']),600000).hex()
         return hmac.compare_digest(digest,cfg['password_hash'])
     original=os.environ.get('APP_PASSWORD','')
-    return bool(original) and hmac.compare_digest(password,original)
+    return bool(original) and hmac.compare_digest(password.encode(),original.encode())
 def settings(app):
     cfg=read_config(app)
     defaults={'host':'','port':636,'base_dn':'','user_base':'','bind_dn':'','user_filter':'(objectClass=posixAccount)','uid_attr':'uid','name_attr':'','id_attr':'entryUUID','department_attr':'','ca_file':'','description_attr':'description','verify_tls':True,'allow_department_write':False}
