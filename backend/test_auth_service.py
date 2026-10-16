@@ -25,7 +25,7 @@ class LoginTests(unittest.TestCase):
         result=self.request('/api/auth/login','POST',{'username':'admin','password':'initial-password-123','next':next},cookie,csrf)
         self.assertEqual(result[0],'200 OK');return self.cookies(result[1]),result
     def test_html_redirect_api_no_challenge_and_public_login(self):
-        status,headers,_=self.request('/a/test-asset');self.assertEqual(status,'303 See Other');self.assertEqual(dict(headers)['Location'],'/login?next=%2Fa%2Ftest-asset')
+        status,headers,_=self.request('/manage/a/test-asset');self.assertEqual(status,'303 See Other');self.assertEqual(dict(headers)['Location'],'/login?next=%2Fmanage%2Fa%2Ftest-asset')
         status,headers,_=self.request('/api/data');self.assertEqual(status,'401 Unauthorized');self.assertNotIn('WWW-Authenticate',dict(headers))
         status,_,html=self.request('/login');self.assertEqual(status,'200 OK');self.assertIn(b'loginForm',html)
         status,_,svg=self.request('/login-logo.svg');self.assertEqual(status,'200 OK');self.assertIn(b'<svg',svg)
@@ -62,3 +62,4 @@ class LoginTests(unittest.TestCase):
         with patch.dict(os.environ,{'APP_PASSWORD':'테스트비밀번호123456'}):self.assertTrue(admin_service.password_valid(app,'테스트비밀번호123456'))
 
 if __name__=='__main__':unittest.main()
+

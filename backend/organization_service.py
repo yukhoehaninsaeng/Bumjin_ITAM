@@ -166,7 +166,7 @@ def mutate(app,payload):
                 if str(uid or '')!=str(r[0]) or current!=str(r[4] or ''):raise ValueError('LDAP 계정/부서가 외부에서 변경되었습니다. 다시 동기화하세요.')
                 targets.append((row,r,entry['dn'],current))
             for row,r,dn,current in targets:
-                event={'time':dt.datetime.now().astimezone().isoformat(),'directory_id':str(r[3]),'uid':str(r[0]),'before':current,'after':path,'batch':batch}
+                event={'time':dt.datetime.now().astimezone().isoformat(),'directory_id':str(r[3]),'uid':str(r[0]),'before':current,'after':path,'batch':batch,'actor':payload.get('_actor','admin')}
                 if current==path:results.append({**event,'status':'unchanged'});continue
                 journal(app,{**event,'status':'pending'})
                 try:
@@ -191,3 +191,4 @@ def mutate(app,payload):
         except ValueError:raise
         except Exception as e:raise ValueError(admin_service.ldap_error(e)) from None
         finally:conn.unbind()
+

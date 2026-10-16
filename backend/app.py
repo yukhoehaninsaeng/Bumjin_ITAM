@@ -53,6 +53,7 @@ def initialize():
                     s[f'AZ{r}']=str(uuid.uuid4()); changed=True
         for name,headers in [('앱_이력',['시각','자산ID','유형','이전','이후']),('앱_LDAP사용자',['uid','실명','이메일','디렉터리ID'])]:
             if name not in w: w.create_sheet(name).append(headers); changed=True
+        if not w['앱_이력'].cell(1,6).value:w['앱_이력'].cell(1,6,'작업자');changed=True
         if organization_service.bootstrap_from_excel(__import__(__name__),w):changed=True
         if changed: save(w,old)
 
@@ -81,7 +82,7 @@ def snapshot():
     with LOCK:
         rev=digest(); w=openpyxl.load_workbook(FILE)
         users=[dict(zip(['uid','name','email','directory_id','department','dn','description'],map(value,r))) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=7,values_only=True) if r[0]]
-        history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=5,values_only=True)]
+        history=[list(map(value,r)) for r in w['앱_이력'].iter_rows(min_row=2,max_col=6,values_only=True)]
         return {'assets':assets(w),'users':users,'revision':rev,'history':history[-300:][::-1],
                 'organizations':[{'name':value(r[0]),'dn':value(r[1])} for r in w['앱_LDAP조직'].iter_rows(min_row=2,max_col=2,values_only=True) if r[0]] if '앱_LDAP조직' in w else [],'managed_organizations':organization_service.rows(w),'asset_organizations':organization_service.asset_links(w),'organization_history':organization_service.history(w),'schema_version':2,'base_url':os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:1880')}
 
@@ -141,7 +142,7 @@ def mutate(payload):
         s[f'{grade}{row}']=f'=IF({date}{row}="","",IF(DATEDIF({date}{row},TODAY(),"Y")>=10,"D",IF(DATEDIF({date}{row},TODAY(),"Y")>=5,"C",IF(DATEDIF({date}{row},TODAY(),"Y")>=3,"B","A"))))'
         s[f'AZ{row}']=aid;literal(s[f'BA{row}'],uid)
         after=next(a for a in assets(w) if a['id']==aid)
-        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),aid,payload.get('action') or ('수정' if before else '등록'),json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False)])
+        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),aid,payload.get('action') or ('수정' if before else '등록'),json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False),payload.get('_actor','admin')])
         save(w,old)
         return {'id':aid}
 
@@ -173,7 +174,7 @@ def map_user_assets(payload):
             sheet=w[CONFIG[division][0]];row=before['row']
             literal(sheet[f'BA{row}'],uid);literal(sheet[f'D{row}'],name)
             after={**before,'uid':uid,'user':name}
-            event=[timestamp,before['id'],'LDAP 일괄 매핑',json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False)]
+            event=[timestamp,before['id'],'LDAP 일괄 매핑',json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False),payload.get('_actor','admin')]
             r=w['앱_이력'].max_row+1
             for c,v in enumerate(event,1):literal(w['앱_이력'].cell(r,c),v)
         save(w,old)
@@ -239,7 +240,7 @@ def mutate_maintenance(payload):
                 cell.value=n
             else:literal(cell,v)
         s[f'K{row}']=f'=IF(M{row}="","",M{row}-TODAY())'
-        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),'maintenance:'+str(row),'유지보수 수정','',json.dumps(payload,ensure_ascii=False)])
+        w['앱_이력'].append([dt.datetime.now().astimezone().isoformat(),'maintenance:'+str(row),'유지보수 수정','',json.dumps(payload,ensure_ascii=False),payload.get('_actor','admin')])
         save(w,old);return {'row':row}
 
 def qr_svg(url):
@@ -256,6 +257,31 @@ def qr_svg(url):
         if match:
             svg=svg.replace('</svg>','<rect x="49" y="102" width="142" height="36" rx="2" fill="white"/><image x="52" y="105" width="136" height="30" preserveAspectRatio="xMidYMid meet" xlink:href="'+match.group(1)+'"/></svg>')
     return svg.encode()
+
+
+def asset_id_from_path(path,prefix):
+    aid=path[len(prefix):]
+    return aid if re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',aid) else None
+
+def readonly_assets(aid=None):
+    """Explicit public field allowlist. No LDAP IDs, emails, serials, SW, notes or history."""
+    fields=('id','number','division','category','type','maker','model','cpu','ram','ssd','hdd','gpu','os','edition','size','date','date_label','status')
+    with LOCK:
+        w=openpyxl.load_workbook(FILE)
+        try:
+            users={value(r[0]):list(r) for r in w['앱_LDAP사용자'].iter_rows(min_row=2,max_col=7,values_only=True) if r[0]}
+            links=organization_service.asset_links(w);orgs=organization_service.rows(w);out=[]
+            for a in assets(w):
+                if aid is not None and a['id']!=aid:continue
+                user=users.get(a['uid']);name=value(user[6]) if user else ''
+                if not name and user and value(user[1])!=a['uid']:name=value(user[1])
+                if not name and a['user']!=a['uid']:name=a['user']
+                department=(value(user[4]) if user else '') or a['department']
+                if not (user and value(user[4])) and a['id'] in links:
+                    department=organization_service.path_for(orgs,links[a['id']])
+                out.append({**{k:a.get(k,'') for k in fields},'user':name or ('이름 미등록' if a['uid'] else '미배정'),'department':department})
+            return out
+        finally:w.close()
 
 SESSION=secrets.token_urlsafe(32)
 def application(env,start):
@@ -280,12 +306,26 @@ def application(env,start):
         except (ValueError,KeyError):return reply('400 Bad Request',{'error':'로그인 요청이 올바르지 않습니다.'})
         code,body,headers=auth_service.login(module,env,payload);return reply(code,body,extra=headers)
     if method=='GET' and path=='/login':
-        if session:
-            target=auth_service.safe_next(parse_qs(env.get('QUERY_STRING','')).get('next',['/'])[0])
+        target=auth_service.safe_next(parse_qs(env.get('QUERY_STRING','')).get('next',['/'])[0])
+        switching_to_admin=session and session.get('role')!='admin' and (target in ('/admin','/users') or target.startswith('/manage/a/'))
+        if session and not switching_to_admin:
             return reply('303 See Other',b'',extra=[('Location',target)])
         return reply('200 OK',(ROOT.parent/'public/login.html').read_bytes(),'text/html; charset=utf-8')
+    # Direct QR URLs always render the read-only page, including for administrators.
+    if method=='GET' and path in ('/qr-scanner.js','/vendor/jsQR.js'):
+        return reply('200 OK',(ROOT.parent/'public'/path.lstrip('/')).read_bytes(),'text/javascript; charset=utf-8')
+    if method=='GET' and path.startswith('/a/'):
+        if not asset_id_from_path(path,'/a/'):return reply('404 Not Found',{'error':'자산 주소가 올바르지 않습니다.'})
+        return reply('200 OK',(ROOT.parent/'public/asset-view.html').read_bytes(),'text/html; charset=utf-8')
+    if method=='GET' and path.startswith('/api/public/assets/'):
+        aid=asset_id_from_path(path,'/api/public/assets/')
+        if not aid:return reply('404 Not Found',{'error':'자산을 찾을 수 없습니다.'})
+        try:found=readonly_assets(aid)
+        except Exception:return reply('503 Service Unavailable',{'error':'자산 정보를 불러오지 못했습니다. 관리자에게 문의하세요.'})
+        if not found:return reply('404 Not Found',{'error':'자산을 찾을 수 없습니다.'})
+        return reply('200 OK',{'asset':found[0]})
     if not session:
-        if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/a/')):
+        if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/manage/a/')):
             return reply('303 See Other',b'',extra=[('Location','/login?next='+quote(path,safe=''))])
         return reply('401 Unauthorized',{'error':'로그인이 필요합니다.'})
     request_csrf=session['csrf']
@@ -293,6 +333,15 @@ def application(env,start):
         if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침 후 다시 시도하세요.'})
         auth_service.remove_session(env)
         return reply('200 OK',{'ok':True},extra=[auth_service.cookie_header(env,auth_service.COOKIE,'',0)])
+    if method=='GET' and path=='/api/auth/me':
+        return reply('200 OK',{'username':session['username'],'role':session['role'],'csrf':request_csrf})
+    if method=='GET' and path=='/api/view/assets':
+        try:return reply('200 OK',{'assets':readonly_assets()})
+        except Exception:return reply('503 Service Unavailable',{'error':'자산 정보를 불러오지 못했습니다.'})
+    if session.get('role')!='admin':
+        if method=='GET' and path=='/':
+            return reply('200 OK',(ROOT.parent/'public/asset-view.html').read_bytes(),'text/html; charset=utf-8')
+        return reply('403 Forbidden',{'error':'관리자만 사용할 수 있는 기능입니다.'})
     try:
         if method=='POST' and path=='/api/labels/pdf':
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침하세요.'})
@@ -309,7 +358,7 @@ def application(env,start):
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>20000:return reply('413 Payload Too Large',{})
-            payload=json.loads(env['wsgi.input'].read(length))
+            payload=json.loads(env['wsgi.input'].read(length));payload['_actor']=session['username']
             try:
                 module=__import__(__name__)
                 result=organization_service.mutate(module,payload) if path=='/api/organizations' else admin_service.synchronize(module,payload) if path.endswith('/ldap') else admin_service.update_settings(module,payload)
@@ -321,7 +370,7 @@ def application(env,start):
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>20000:return reply('413 Payload Too Large',{})
-            return reply('200 OK',mutate_maintenance(json.loads(env['wsgi.input'].read(length))))
+            return reply('200 OK',mutate_maintenance({**json.loads(env['wsgi.input'].read(length)),'_actor':session['username']}))
         if method=='GET' and path=='/api/data':return reply('200 OK',{**snapshot(),'csrf':request_csrf})
         if method=='GET' and path=='/api/export':return reply('200 OK',FILE.read_bytes(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', [('Content-Disposition','attachment; filename="Bumjin_IT_assets.xlsx"')])
         if method=='GET' and path.startswith('/qr/'):
@@ -333,9 +382,9 @@ def application(env,start):
             if not hmac.compare_digest(env.get('HTTP_X_CSRF_TOKEN',''),request_csrf):return reply('403 Forbidden',{'error':'세션이 변경됐습니다. 새로고침하세요.'})
             length=int(env.get('CONTENT_LENGTH') or '0')
             if length>100000:return reply('413 Payload Too Large',{})
-            payload=json.loads(env['wsgi.input'].read(length))
+            payload=json.loads(env['wsgi.input'].read(length));payload['_actor']=session['username']
             return reply('200 OK',map_user_assets(payload) if path.endswith('/map-user') else mutate(payload))
-        if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/a/')):return reply('200 OK',(ROOT.parent/'public/index.html').read_bytes(),'text/html; charset=utf-8')
+        if method=='GET' and (path in ('/','/admin','/users') or path.startswith('/manage/a/')):return reply('200 OK',(ROOT.parent/'public/index.html').read_bytes(),'text/html; charset=utf-8')
         return reply('404 Not Found',{})
     except (ValueError,KeyError) as e:return reply('409 Conflict',{'error':str(e)})
     except PermissionError:return reply('409 Conflict',{'error':'엑셀이 열려 있거나 파일 권한이 없습니다. 파일을 닫고 재시도하세요.'})
@@ -354,3 +403,4 @@ if __name__=='__main__':
         os.close(fd);initialize();print('Bumjin Assets: '+os.environ.get('PUBLIC_BASE_URL','http://127.0.0.1:'+os.environ.get('PORT','1880'))+' (로그인: admin)')
         make_server(os.environ.get('HOST','127.0.0.1'),int(os.environ.get('PORT','1880')),application).serve_forever()
     finally:lock.unlink(missing_ok=True)
+

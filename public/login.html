@@ -11,7 +11,7 @@
 <main class="loginCard" aria-labelledby="loginTitle">
 <div class="brand"><img src="/login-logo.svg" alt="BUMJIN"></div>
 <h1 id="loginTitle">로그인</h1>
-<p class="subtitle">BUMJIN IT 자산관리<br>관리자 계정으로 로그인하세요.</p>
+<p class="subtitle">BUMJIN IT 자산관리<br>관리자는 admin, 일반 직원은 LDAP 계정으로 로그인하세요.<br>일반 직원은 자산 조회만 가능합니다.</p>
 <form id="loginForm">
 <div class="field"><label for="username">아이디</label><input id="username" name="username" placeholder="아이디 입력" autocomplete="username" maxlength="128" required autofocus></div>
 <div class="field"><label for="password">비밀번호</label><div class="passwordField"><input id="password" name="password" type="password" placeholder="비밀번호 입력" autocomplete="current-password" maxlength="256" required><button type="button" id="revealPassword" class="reveal" aria-label="비밀번호 표시" aria-pressed="false">보기</button></div></div>
@@ -29,3 +29,4 @@ form.onsubmit=async e=>{e.preventDefault();if(button.disabled)return;button.disa
 prepareLogin().catch(e=>showError(e.message)).finally(()=>{button.disabled=false});
 </script>
 </body></html>
+
