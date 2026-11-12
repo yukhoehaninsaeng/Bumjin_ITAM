@@ -1,0 +1,44 @@
+name: Python platform
+on:
+  pull_request:
+    paths: ["platform/**", "compose.platform.yml", ".github/workflows/platform.yml"]
+  push:
+    paths: ["platform/**", "compose.platform.yml", ".github/workflows/platform.yml"]
+permissions:
+  contents: read
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: itam
+          POSTGRES_DB: itam
+          POSTGRES_PASSWORD: ci-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U itam -d itam"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ITAM_DEBUG: "1"
+      DATABASE_URL: postgresql://itam:ci-test-only@localhost:5432/itam
+      DJANGO_SECRET_KEY: ci-only-not-a-production-secret
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py collectstatic --noinput
+      - run: python manage.py test operations --noinput
+      - run: node --check operations/static/operations/workspace.js
+      - run: node --check operations/static/operations/uploads.js
