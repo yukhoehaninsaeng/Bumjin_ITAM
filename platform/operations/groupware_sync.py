@@ -99,6 +99,8 @@ def find_employee(account):
     matches=list(Employee.objects.filter(Q(groupware_uid=account)|Q(directory_uid=account)|Q(user__username=account)).distinct()[:2])
     if len(matches)>1:
         raise ValueError('기존 직원 계정 매핑이 중복됩니다. 먼저 정리하세요: '+account)
+    if not matches and get_user_model().objects.filter(username=account).exists():
+        raise ValueError('직원에 연결되지 않은 기존 로그인 계정이 있습니다. 수동 연결이 필요합니다: '+account)
     return matches[0] if matches else None
 
 
