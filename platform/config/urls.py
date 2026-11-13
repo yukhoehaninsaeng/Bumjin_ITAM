@@ -31,6 +31,8 @@ for area, portal in [("admin", False), ("portal", True)]:
     ]
 urlpatterns += [
     path("api/v1/admin/tickets/<uuid:ticket_id>/claim", api.claim),
+    path("api/v1/admin/assets/labels", api.asset_labels),
+    path("api/v1/admin/assets/<uuid:asset_id>/qr", api.asset_qr),
     path("api/v1/admin/assets/<uuid:asset_id>/assign", api.asset_assign),
     path("api/v1/admin/assets/<uuid:asset_id>/return", api.asset_assign, {"returning": True}),
 ]
