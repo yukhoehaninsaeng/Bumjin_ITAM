@@ -3801,3 +3801,46 @@ body:not(.loginBody) {font-family:"Noto Sans KR",system-ui,sans-serif;color:#242
 .assetListPagination b {padding:5px 11px;background:#f6f7f9;border-radius:3px;color:#24262b}
 @media(max-width:1100px){.figmaAssetFilters{grid-template-columns:2fr 1fr 1fr}.assetListHeading{flex-wrap:wrap}}
 @media(max-width:800px){#workspace{padding:20px 14px;margin-top:64px}.workspaceHeader{height:64px}.figmaAssetFilters{grid-template-columns:1fr 1fr}.figmaAssetFilters label:first-child{grid-column:1/-1}.assetListTools span{display:none}.assetTypeTabs{gap:24px}.assetHeadingActions{flex-wrap:wrap}.figmaAssetTable table{min-width:950px}.figmaAssetTable tbody tr{display:table-row}.figmaAssetTable td{display:table-cell}.figmaAssetTable td:before{display:none}}
+
+/* Expandable organization directory; shares the workspace brand and controls. */
+.directoryControls {display:flex;gap:12px;margin:24px 0 18px}
+.directoryControls>label:first-child {flex:1;max-width:560px}
+.directoryControls>label:last-child {width:180px}
+.directoryControls input,.directoryControls select {height:40px;font-size:13px}
+.directoryLayout {display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:24px;align-items:start}
+.directoryTreePanel,.directoryPeoplePanel {min-width:0;border:1px solid var(--edge);border-radius:6px;background:#fff}
+.directoryPanelHead {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px;border-bottom:1px solid var(--edge)}
+.directoryPanelHead h2,.directorySelectionHead h2 {margin:0;font-size:16px;font-weight:700}
+.directoryPanelHead>div {display:flex;gap:5px}
+.directoryPanelHead button {padding:5px 7px;min-height:30px;background:white;color:#606773;border:1px solid var(--edge);font-size:11px}
+#directoryTree {padding:12px 10px;max-height:calc(100vh - 285px);min-height:280px;overflow:auto}
+.directoryCompanyBranch {margin-top:8px}
+.directoryCompanyBranch>summary {font-weight:700}
+.directoryBranch summary,.directoryCompanyBranch summary {display:flex;align-items:center;gap:3px;cursor:pointer;list-style:none;border-radius:4px}
+.directoryBranch summary::-webkit-details-marker,.directoryCompanyBranch summary::-webkit-details-marker {display:none}
+.directoryBranch summary:before,.directoryCompanyBranch summary:before {content:"›";display:block;flex:0 0 18px;text-align:center;color:#757d89;font-size:20px;line-height:30px;transition:transform .12s}
+.directoryBranch[open]>summary:before,.directoryCompanyBranch[open]>summary:before {transform:rotate(90deg)}
+.directoryChildren {margin-left:9px;padding-left:12px;border-left:1px solid #e2e4e8}
+.directoryNode {display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;background:transparent;color:#424752;border:0;border-radius:4px;text-align:left;padding:9px 10px;min-height:36px;font-size:13px;font-weight:inherit;line-height:1.5}
+.directoryNode>span {overflow-wrap:anywhere;min-width:0}
+.directoryNode small {font-size:11px;color:#757d89;flex-shrink:0}
+.directoryNode:hover {background:#f7f8fa;color:#24262b}
+.directoryNode.isSelected {background:#fceef1;color:#a71c39;font-weight:700}
+.directoryNode:focus-visible, .directoryBranch summary:focus-visible,.directoryCompanyBranch summary:focus-visible {outline:2px solid var(--brand);outline-offset:2px}
+.directoryNode.directoryPerson {font-size:12px;color:#606773;padding-left:22px;position:relative;font-weight:400}
+.directoryPerson:before {content:"";width:6px;height:6px;border-radius:50%;background:#aab0ba;position:absolute;left:9px}
+.directoryPerson.isSelected {color:#a71c39}
+.directoryEmptyBranch {display:block;padding:8px 10px;color:#9298a1;font-size:11px}
+.directorySelectionHead {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px}
+.directorySelectionHead p {margin:6px 0 0;color:#757d89;font-size:12px}
+.directoryCount {white-space:nowrap;background:#f7f8fa;border-radius:4px;padding:6px 10px;color:#606773;font-size:12px}
+.directoryPeoplePanel .tablewrap {border:0;border-radius:0 0 6px 6px}
+.directoryTable th,.directoryTable td {padding:13px 16px;font-size:13px}
+.directoryTable td {cursor:default}
+.directoryTable td a {color:#a71c39;text-decoration:none}
+.directoryTable td a:hover {text-decoration:underline}
+.directoryEmpty {text-align:center;padding:70px 20px;color:#606773;line-height:1.8}
+.directoryEmpty small {color:#9298a1}
+@media(max-width:1050px){.directoryLayout{grid-template-columns:280px minmax(0,1fr);gap:16px}}
+@media(max-width:800px){.directoryLayout{grid-template-columns:1fr}.directoryControls{flex-wrap:wrap}.directoryControls>label:first-child{max-width:none;min-width:180px}#directoryTree{max-height:360px;min-height:160px}.directoryTable{min-width:580px}.directoryPeoplePanel .tablewrap{overflow:auto}.directoryTable thead{display:table-header-group}.directoryTable tbody tr{display:table-row}.directoryTable td{display:table-cell}.directoryTable td:before{display:none}}
+@media(prefers-reduced-motion:reduce){.directoryBranch summary:before,.directoryCompanyBranch summary:before{transition:none}}
