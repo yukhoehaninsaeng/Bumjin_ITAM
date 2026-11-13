@@ -3728,3 +3728,14 @@ body.loginBody {
 .assetQrCard h2 { justify-self: stretch; margin: 0; font-size: 14px; }
 .assetQrCard img { width: 180px; max-width: 100%; height: auto; }
 .assetQrCard button { width: 100%; }
+
+.assetExportLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  color: #48464d;
+  text-decoration: none;
+}
