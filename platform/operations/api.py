@@ -368,6 +368,50 @@ def asset_assign(request, asset_id, returning=False):
 
 
 @api_view(["GET"])
+def asset_export(request):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("자산 Excel 다운로드 권한이 없습니다.")
+    from io import BytesIO
+    from openpyxl import Workbook
+
+    assets = Asset.objects.filter(
+        policies.company_scope(request.user, "asset_manager")
+    ).select_related("company", "organization").prefetch_related("assignments__employee").order_by("company__code", "number")
+    columns = [
+        "관리번호", "법인", "관리조직", "장비구분", "장비유형", "제조사", "모델", "일련번호",
+        "상태", "사용자", "CPU", "RAM", "SSD", "HDD", "그래픽", "운영체제", "OS 에디션",
+        "화면크기", "구입일", "Office", "한글", "SAP", "백신", "Docuone", "OfficeKeeper", "기타SW", "비고",
+    ]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "자산 목록"
+    sheet.append(columns)
+    for asset in assets:
+        meta = asset.legacy_data or {}
+        software = meta.get("software") or {}
+        assignment = asset.assignments.filter(returned_at__isnull=True).select_related("employee").first()
+        sheet.append([
+            asset.number, asset.company.code, asset.organization.name, asset.category,
+            {"NOTEBOOK": "노트북", "DESKTOP": "데스크톱"}.get(meta.get("device_type"), ""),
+            asset.maker, asset.model, asset.serial, asset.get_status_display(),
+            assignment.employee.name if assignment and assignment.employee else "",
+            meta.get("cpu", ""), meta.get("ram", ""), meta.get("ssd", ""), meta.get("hdd", ""),
+            meta.get("gpu", ""), meta.get("os", ""), meta.get("os_edition", ""), meta.get("size", ""),
+            meta.get("purchase_date", ""), software.get("office", ""), software.get("hangul", ""),
+            software.get("sap", ""), software.get("antivirus", ""), software.get("docuone", ""),
+            software.get("officekeeper", ""), software.get("other", ""), meta.get("note", ""),
+        ])
+    output = BytesIO()
+    workbook.save(output)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="Bumjin_IT_assets.xlsx"'
+    return response
+
+
+@api_view(["GET"])
 def asset_qr(request, asset_id):
     asset = get_object_or_404(policies.assets_visible(request.user), pk=asset_id)
     from reportlab.graphics.barcode.qr import QrCodeWidget
