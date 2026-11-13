@@ -201,14 +201,30 @@ class Command(BaseCommand):
             for row in range(3, 18):
                 values = {key: clean(resolve_merged(sheet, row, col)) for key, col in MAINT_FIELDS.items()}
                 if values["service"]:
-                    records.append(values)
+                    self.add_contract_record(records, issues, values, sheet_name, row)
         if "앱_유지보수" in book.sheetnames:
             sheet = book["앱_유지보수"]
             for row in range(2, sheet.max_row + 1):
                 values = {key: clean(sheet[f"{col}{row}"].value) for key, col in MAINT_FIELDS.items()}
                 if values["service"]:
-                    records.append(values)
+                    self.add_contract_record(records, issues, values, "앱_유지보수", row)
         return records
+
+    def add_contract_record(self, records, issues, values, sheet_name, row):
+        if not values.get("vendor"):
+            issues.append({"sheet": sheet_name, "row": row, "code": "MAINTENANCE_VENDOR_MISSING"})
+            return
+        raw_quantity = values.get("quantity") or "1"
+        try:
+            quantity = int(float(raw_quantity.replace(",", "")))
+        except (TypeError, ValueError):
+            issues.append({"sheet": sheet_name, "row": row, "code": "MAINTENANCE_QUANTITY_INVALID"})
+            return
+        if not 1 <= quantity <= 100000:
+            issues.append({"sheet": sheet_name, "row": row, "code": "MAINTENANCE_QUANTITY_OUT_OF_RANGE"})
+            return
+        values["_quantity"] = quantity
+        records.append(values)
 
     @transaction.atomic
     def apply_records(self, assets, contracts):
@@ -257,7 +273,7 @@ class Command(BaseCommand):
                 starts_on=starts_on, ends_on=ends_on,
             ).first()
             defaults = {
-                "quantity": int(float(values.get("quantity") or 1)),
+                "quantity": values.get("_quantity", 1),
                 "period": values.get("period", ""),
                 "starts_on": starts_on,
                 "ends_on": ends_on,
