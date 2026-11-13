@@ -21,9 +21,17 @@ class Organization(models.Model):
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT)
     name = models.CharField(max_length=80)
     version = models.PositiveIntegerField(default=1)
+    external_source = models.CharField(max_length=80, blank=True)
+    external_code = models.CharField(max_length=120, blank=True)
+    external_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [
+            models.UniqueConstraint(
+                fields=["external_source", "external_code"],
+                condition=~Q(external_code=""),
+                name="org_external_identity",
+            ),
             models.UniqueConstraint(
                 fields=["company", "parent", "name"],
                 condition=Q(parent__isnull=False),
@@ -55,6 +63,8 @@ class Employee(models.Model):
     directory_source = models.CharField(max_length=80, blank=True)
     directory_id = models.CharField(max_length=255, blank=True)
     directory_uid = models.CharField(max_length=128, blank=True)
+    groupware_uid = models.CharField(max_length=128, blank=True)
+    groupware_data = models.JSONField(default=dict, blank=True)
     version = models.PositiveIntegerField(default=1)
 
     class Meta:
@@ -63,6 +73,10 @@ class Employee(models.Model):
                 fields=["directory_source", "directory_id"],
                 condition=~Q(directory_id=""),
                 name="employee_directory_identity",
+            ),
+            models.UniqueConstraint(
+                fields=["groupware_uid"], condition=~Q(groupware_uid=""),
+                name="employee_groupware_identity",
             )
         ]
 
