@@ -525,27 +525,66 @@
       });
     };
   }
-  async function newAsset() {
+  async function newAsset() { return assetEditor(null); }
+  async function assetEditor(asset) {
     const orgs = (await call("/admin/organizations?purpose=asset")).data;
-    if (!orgs.length) {
-      toast("자산을 등록할 법인·조직 범위를 먼저 설정해주세요.");
-      return;
-    }
-    showDialog(
-      "자산 등록",
-      `<form id="assetForm"><div class="grid"><label>관리 조직<select name="organization_id">${orgs.map((o) => `<option value="${o.id}">${esc(o.company)} / ${esc(o.name)}</option>`).join("")}</select></label><label>장비 구분<select name="category"><option>PC</option><option>모니터</option></select></label><label>PC 유형<select name="device_type"><option value="NOTEBOOK">노트북</option><option value="DESKTOP">데스크톱</option></select></label><label>관리번호<input name="number" maxlength="80" placeholder="비워두면 저장 시 자동 채번"></label><label>제조사<input name="maker" maxlength="80"></label><label>모델 *<input name="model" maxlength="160" required></label><label>일련번호<input name="serial" maxlength="160"></label></div><p class="fieldHelp">새 자산은 보관 상태로 등록됩니다. 상세에서 직원에게 배정할 수 있습니다.</p><div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>자산 등록</button></div></form>`,
-    );
+    if (!orgs.length) return toast("자산을 등록할 법인·조직 범위를 먼저 설정해주세요.");
+    const meta = asset?.legacy_data || {}, sw = meta.software || {};
+    const v = (key) => esc(meta[key] || "");
+    const orgValue = asset?.organization_id || orgs[0].id;
+    showDialog(asset ? "자산 정보 수정" : "자산 등록", `<form id="assetForm">
+      <fieldset class="formSection"><legend>기본 정보</legend><div class="grid">
+        <label>관리 조직<select name="organization_id">${orgs.map(o => `<option value="${o.id}" ${o.id === orgValue ? "selected" : ""}>${esc(o.company)} / ${esc(o.name)}</option>`).join("")}</select></label>
+        <label>장비 구분<select name="category"><option value="PC" ${asset?.category === "PC" || !asset ? "selected" : ""}>PC</option><option value="모니터" ${asset?.category === "모니터" ? "selected" : ""}>모니터</option></select></label>
+        <label>PC 유형<select name="device_type"><option value="NOTEBOOK" ${meta.device_type !== "DESKTOP" ? "selected" : ""}>노트북</option><option value="DESKTOP" ${meta.device_type === "DESKTOP" ? "selected" : ""}>데스크톱</option></select></label>
+        <label>관리번호<input name="number" maxlength="80" value="${esc(asset?.number || "")}" ${asset ? "required" : ""} placeholder="비워두면 자동 채번"></label>
+        <label>제조사<input name="maker" maxlength="80" value="${esc(asset?.maker || "")}"></label>
+        <label>모델 *<input name="model" maxlength="160" value="${esc(asset?.model || "")}" required></label>
+        <label>일련번호<input name="serial" maxlength="160" value="${esc(asset?.serial || "")}"></label>
+        ${asset ? `<label>상태<select name="status">${[["IN_USE","사용"],["IN_STOCK","보관"],["REPAIR","수리"],["LOST","분실"],["DISPOSED","폐기"]].map(([key,label]) => `<option value="${key}" ${asset.status === key ? "selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}
+      </div></fieldset>
+      <fieldset class="formSection"><legend>상세 사양</legend><div class="grid">
+        <label>CPU<input name="cpu" maxlength="160" value="${v("cpu")}"></label><label>RAM<input name="ram" maxlength="80" value="${v("ram")}"></label>
+        <label>SSD<input name="ssd" maxlength="80" value="${v("ssd")}"></label><label>HDD<input name="hdd" maxlength="80" value="${v("hdd")}"></label>
+        <label>그래픽<input name="gpu" maxlength="160" value="${v("gpu")}"></label><label>운영체제<input name="os" maxlength="120" value="${v("os")}"></label>
+        <label>OS 에디션<input name="os_edition" maxlength="120" value="${v("os_edition")}"></label><label>화면 크기<input name="size" maxlength="40" value="${v("size")}"></label>
+        <label>구입일<input type="date" name="purchase_date" value="${v("purchase_date")}"></label><label class="fullRow">비고<textarea name="note" maxlength="2000">${v("note")}</textarea></label>
+      </div></fieldset>
+      <fieldset class="formSection"><legend>소프트웨어</legend><div class="grid">
+        <label>Office<input name="sw_office" maxlength="120" value="${esc(sw.office || "")}"></label><label>한글<input name="sw_hangul" maxlength="120" value="${esc(sw.hangul || "")}"></label>
+        <label>SAP<input name="sw_sap" maxlength="120" value="${esc(sw.sap || "")}"></label><label>백신<input name="sw_antivirus" maxlength="120" value="${esc(sw.antivirus || "")}"></label>
+        <label>Docuone<input name="sw_docuone" maxlength="120" value="${esc(sw.docuone || "")}"></label><label>OfficeKeeper<input name="sw_officekeeper" maxlength="120" value="${esc(sw.officekeeper || "")}"></label>
+        <label class="fullRow">기타<input name="sw_other" maxlength="500" value="${esc(sw.other || "")}"></label>
+      </div></fieldset>
+      <p class="fieldHelp">${asset ? "수정 내용은 변경 이력에 기록됩니다." : "새 자산은 보관 상태로 등록됩니다. 저장 후 직원에게 배정할 수 있습니다."}</p>
+      <div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>${asset ? "변경 저장" : "자산 등록"}</button></div></form>`);
     const form = document.getElementById("assetForm");
-    form.onsubmit = (e) => {
-      e.preventDefault();
+    form.onsubmit = (event) => {
+      event.preventDefault();
       submit(form, async () => {
-        const payload = Object.fromEntries(new FormData(form));
-        const result = await call("/admin/assets", {
-          method: "POST",
-          body: payload,
-        });
-        closeDialog();
-        location.href = "/admin/assets?asset=" + result.data.id;
+        const values = Object.fromEntries(new FormData(form));
+        const legacy_data = {
+          device_type: values.device_type, cpu: values.cpu, ram: values.ram, ssd: values.ssd,
+          hdd: values.hdd, gpu: values.gpu, os: values.os, os_edition: values.os_edition,
+          size: values.size, purchase_date: values.purchase_date, note: values.note,
+          software: {office: values.sw_office, hangul: values.sw_hangul, sap: values.sw_sap,
+            antivirus: values.sw_antivirus, docuone: values.sw_docuone,
+            officekeeper: values.sw_officekeeper, other: values.sw_other},
+        };
+        Object.keys(legacy_data).forEach(key => { if (legacy_data[key] === "") delete legacy_data[key]; });
+        Object.keys(legacy_data.software).forEach(key => { if (!legacy_data.software[key]) delete legacy_data.software[key]; });
+        const payload = {organization_id: values.organization_id, number: values.number, category: values.category,
+          maker: values.maker, model: values.model, serial: values.serial, legacy_data};
+        if (asset) {
+          payload.expected_version = asset.version;
+          payload.status = values.status;
+          const result = await call(`/admin/assets/${asset.id}`, {method:"PATCH", body:payload});
+          closeDialog(); await assetDetail(result.data.id); toast("자산 정보를 수정했습니다.");
+        } else {
+          payload.device_type = values.device_type;
+          const result = await call("/admin/assets", {method:"POST", body:payload});
+          closeDialog(); location.href = "/admin/assets?asset=" + result.data.id;
+        }
       });
     };
   }
@@ -593,6 +632,9 @@
         });
         await ticketDetail(currentTicket.id);
         toast("요청을 담당하게 되었습니다.");
+      } else if (button.dataset.editAsset) {
+        const asset = (await call(`/admin/assets/${button.dataset.editAsset}`)).data;
+        await assetEditor(asset);
       } else if (button.dataset.assignAsset)
         await assignDialog(
           button.dataset.assignAsset,
