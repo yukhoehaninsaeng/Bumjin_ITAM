@@ -498,10 +498,19 @@
       <div class="directoryLayout"><aside class="directoryTreePanel"><div class="directoryPanelHead"><h2>조직도</h2><div><button type="button" class="secondary" data-tree-expand>모두 펼치기</button><button type="button" class="secondary" data-tree-collapse>접기</button></div></div><nav id="directoryTree" aria-label="법인 및 부서별 사용자"></nav></aside><section class="directoryPeoplePanel" id="directoryPeople" aria-live="polite"></section></div>`;
     const tree = document.getElementById("directoryTree");
     const panel = document.getElementById("directoryPeople");
-    const matches = e => !search || [e.name,e.email,e.organization,e.company].join(" ").toLocaleLowerCase().includes(search);
+    function organizationPath(employee) {
+      const names = [];
+      const seen = new Set();
+      let node = byId.get(employee.organization_id);
+      while (node && !seen.has(node.id)) {
+        seen.add(node.id); names.push(node.name); node = byId.get(node.parent_id);
+      }
+      return names.join(" ");
+    }
+    const matches = e => !search || [e.name,e.email,e.organization,e.company,organizationPath(e)].join(" ").toLocaleLowerCase().includes(search);
     const branchMatch = id => !search || [...subtree(id)].some(key => {
       const org = byId.get(key);
-      return org?.name.toLocaleLowerCase().includes(search) ||
+      return [org?.name,org?.company].join(" ").toLocaleLowerCase().includes(search) ||
         (directPeople.get(key) || []).some(matches);
     });
     const isSelected = (kind,id) => selected.kind === kind && selected.id === id ? " isSelected" : "";
