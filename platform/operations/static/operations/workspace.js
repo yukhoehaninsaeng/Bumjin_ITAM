@@ -341,6 +341,27 @@
       heading(a.number, `${a.company} · ${a.category} · ${a.model}`, `<span class="pill" data-state="${esc(a.status)}">${esc(a.status_label)}</span>`) +
       `<div class="figmaAssetDetail"><section class="assetPrimary"><section class="assetInfoPanel"><h2 class="sectionTitle">장비 정보</h2><p class="detailPanelDescription">자산 기본 정보와 사양을 확인합니다.</p><div class="assetSpecRows">${deviceRows.map(([k,v]) => `<div class="assetSpecRow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div></section><section class="assetInfoPanel softwareSection"><h2 class="sectionTitle">소프트웨어</h2><p class="detailPanelDescription">자산에 기록된 소프트웨어 정보입니다.</p><div class="assetSoftwareGrid">${softwareRows.map(([k,v]) => `<div class="assetSoftwareRow"><span>${esc(k)}</span><b>${esc(v || "미기재")}</b></div>`).join("")}</div></section></section><aside class="assetAside"><section class="assetOwnerCard"><h2>현재 사용자</h2><div class="assetOwnerBody"><strong class="ownerName">${esc(a.user)}</strong><p class="ownerMeta">${esc(a.organization)}</p><div class="assetActionStack"><button data-request-asset="${a.id}">이 자산으로 지원 요청</button>${!portal && me.roles.includes("asset_manager") ? `<button class="secondary" data-edit-asset="${a.id}">자산 정보 수정</button>${a.status === "IN_STOCK" ? `<button class="secondary" data-assign-asset="${a.id}" data-version="${a.version}">직원에게 배정</button>` : `<button class="secondary" data-return-asset="${a.id}" data-version="${a.version}">수거 · 반납</button>`}` : ""}</div></div></section>${!portal && me.roles.includes("asset_manager") ? `<section class="assetQrCard"><h2>QR 코드</h2><img src="/api/v1/admin/assets/${a.id}/qr" alt="${esc(a.number)} QR 코드"><button class="secondary" data-label-asset="${a.id}">40mm 라벨 PDF</button></section>` : ""}<section class="assetHistoryCard"><h2>최근 변경 이력</h2>${history.length ? history.map(item => `<div class="assetHistoryItem"><b>${esc(historyLabel[item.action] || item.action)}</b><time>${esc(date(item.created_at))}</time></div>`).join("") : '<p class="muted">기록된 변경 이력이 없습니다.</p>'}</section><section class="assetHistoryCard"><h2>관련 티켓</h2>${tickets.length ? tickets.map(t => `<a class="assetTicketLink" href="/admin/tickets?ticket=${encodeURIComponent(t.id)}"><b>${esc(t.number)}</b><span>${esc(t.title)}</span>${pill(t.status_label, t.status)}</a>`).join("") : '<p class="muted">연결된 티켓이 없습니다.</p>'}</section></aside></div><div class="assetDetailFooter"><a class="secondary" href="/${area}/assets">← 자산 목록</a></div>`;
   }
+  async function assetAnalysis() {
+    const first = await call("/admin/assets?page=1&page_size=100");
+    const assets = [...first.data];
+    for (let page = 2; page <= Math.ceil(first.meta.total / first.meta.page_size); page++) {
+      const next = await call(`/admin/assets?page=${page}&page_size=100`);
+      assets.push(...next.data);
+    }
+    const statusLabels = {IN_USE:"사용", IN_STOCK:"보관", REPAIR:"수리", LOST:"분실", DISPOSED:"폐기"};
+    const statusCounts = Object.fromEntries(Object.keys(statusLabels).map(k => [k, assets.filter(a => a.status===k).length]));
+    const pc = assets.filter(a => a.category==="PC").length;
+    const monitors = assets.filter(a => a.category==="모니터").length;
+    const incomplete = assets.filter(a => !a.maker || !a.model || !a.serial);
+    const bars = Object.entries(statusLabels).map(([key,label]) => {
+      const count=statusCounts[key]||0, width=assets.length?Math.round(count/assets.length*100):0;
+      return `<div class="analysisBarRow"><span>${label}</span><div class="analysisBarTrack"><i style="width:${width}%"></i></div><b>${count}</b></div>`;
+    }).join("");
+    main.innerHTML = heading("분석 및 점검", "자산 보유 현황과 기준정보 누락 항목을 확인합니다.", '<a class="secondary" href="/admin/assets">자산 목록 보기</a>') +
+      `<div class="cards"><div class="card"><span>전체 자산</span><strong>${assets.length}</strong></div><div class="card"><span>PC</span><strong>${pc}</strong></div><div class="card"><span>모니터</span><strong>${monitors}</strong></div><div class="card"><span>기준정보 점검 필요</span><strong>${incomplete.length}</strong></div></div>
+      <div class="demoOverviewGrid"><section class="insightCard"><h3>상태별 자산</h3>${bars}</section><section class="insightCard"><h3>기준정보 누락</h3><p class="muted">제조사, 모델, 시리얼번호 중 하나라도 비어 있는 자산입니다.</p><div class="analysisMissingList">${incomplete.slice(0,20).map(a => `<div><a href="/admin/assets?asset=${a.id}"><b>${esc(a.number)}</b></a><span>${esc(a.company)} · ${esc(a.model || "모델 미등록")}</span><small>${[!a.maker&&"제조사",!a.model&&"모델",!a.serial&&"시리얼"].filter(Boolean).join(" · ")} 누락</small></div>`).join("") || '<p class="muted">점검이 필요한 자산이 없습니다.</p>'}</div>${incomplete.length>20?'<p class="muted">상위 20개만 표시했습니다. 자산 목록에서 나머지를 확인하세요.</p>':""}</section></div>
+      <section class="insightCard"><h3>상태별 목록</h3><div class="demoTabs">${Object.entries(statusLabels).map(([key,label])=>`<a class="pill" href="/admin/assets?status=${key}">${label} ${statusCounts[key]||0}</a>`).join("")}</div></section>`;
+  }
   async function maintenance() {
     const q = params.get("q") || "";
     const active = params.get("active") || "";
@@ -770,6 +791,7 @@
       if (params.get("ticket")) await ticketDetail(params.get("ticket"));
       else if (location.pathname.endsWith("/assets")) await assets();
       else if (location.pathname.endsWith("/maintenance")) await maintenance();
+      else if (location.pathname.endsWith("/asset-analysis")) await assetAnalysis();
       else if (location.pathname.endsWith("/organizations")) await people();
       else if (location.pathname.endsWith("/settings"))
         main.innerHTML =
