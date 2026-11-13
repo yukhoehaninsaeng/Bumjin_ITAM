@@ -280,37 +280,26 @@
     };
   }
   async function assets() {
-    const id = params.get("asset");
-    if (id) return assetDetail(id);
-    const filters = new URLSearchParams();
-    for (const key of ["q", "page", "category", "status", "company"]) {
-      const value = params.get(key);
-      if (value) filters.set(key, value);
-    }
-    const result = await call(`/${area}/assets?${filters.toString()}`);
-    const category = params.get("category") || "";
-    const status = params.get("status") || "";
-    const company = params.get("company") || "";
-    const q = params.get("q") || "";
-    const query = new URLSearchParams({ q, category, status, company });
-    const organizations = !portal ? (await call("/admin/organizations?purpose=asset")).data : [];
-    const companies = [...new Set(organizations.map(o => o.company).filter(Boolean))].sort();
-    const pageLink = (page) => {
-      const next = new URLSearchParams(query);
-      if (page > 1) next.set("page", page);
-      return `?${next.toString()}`;
+    if (params.get("asset")) return assetDetail(params.get("asset"));
+    const category=params.get("category")||"", company=params.get("company")||"", status=params.get("status")||"", inspection=params.get("inspection")||"", q=params.get("q")||"";
+    const query=new URLSearchParams({category,company,status,inspection,q,page:params.get("page")||"1"});
+    const result=await call(`/${area}/assets?${query}`);
+    const orgs=portal?[]:(await call("/admin/organizations?purpose=asset")).data;
+    const companies=[...new Set(orgs.map(o=>o.company))].sort();
+    const manage=!portal&&me.roles.includes("asset_manager"), counts=result.meta.categories||{};
+    const link=(changes)=>"?"+new URLSearchParams({...Object.fromEntries(query),...changes});
+    const options=(items,value)=>items.map(([key,label])=>`<option value="${esc(key)}" ${key===value?"selected":""}>${esc(label)}</option>`).join("");
+    main.innerHTML=`<div class="assetListPage"><div class="assetBreadcrumb">자산 / ${portal?"내 자산":"자산 목록"}</div>
+      <div class="assetListHeading"><div><h1>${portal?"내 자산":"자산 목록"}</h1><p>장비를 검색하고 사용자 배정과 상태를 관리합니다.</p></div><div class="assetHeadingActions"><button class="secondary" data-reload>새로고침</button>${manage?'<a class="secondary assetExportLink" href="/api/v1/admin/assets/export">Excel 다운로드</a><button data-new-asset>＋ 자산 등록</button>':""}</div></div>
+      <div class="assetTypeTabs">${[["","전체 자산"],["PC","PC"],["모니터","모니터"]].map(([key,label])=>`<a href="${link({category:key,page:"1"})}" class="${category===key?"selected":""}">${label} <span>${counts[key||"all"]||0}</span></a>`).join("")}</div>
+      <form class="figmaAssetFilters" method="get"><input type="hidden" name="category" value="${esc(category)}"><label>자산 검색<input name="q" placeholder="관리번호, 사용자, 모델, 일련번호 검색" value="${esc(q)}"></label><label>사업부<select name="company">${options([["","전체 사업부"],...companies.map(c=>[c,c])],company)}</select></label><label>상태<select name="status">${options([["","전체 상태"],["IN_USE","사용"],["IN_STOCK","보관"],["REPAIR","수리"],["LOST","분실"],["DISPOSED","폐기"]],status)}</select></label><label>점검 항목<select name="inspection">${options([["","전체 점검 항목"],["aged","5년 이상 노후 자산"],["missing","기준정보 누락"]],inspection)}</select></label><button class="secondary">검색</button><a href="/${area}/assets">초기화</a></form>
+      <div class="assetListTools"><div><b>${result.meta.total}개 자산</b><span>자산을 선택하면 QR 라벨을 인쇄할 수 있습니다.</span></div><div>${manage?'<button class="secondary" data-label-selected disabled>선택 라벨 PDF</button>':""}<button class="secondary" data-column-settings>열 설정</button></div></div>
+      <div class="tablewrap figmaAssetTable"><table><thead><tr>${manage?'<th><input type="checkbox" data-select-all-assets aria-label="현재 페이지 전체 선택"></th>':""}<th>관리번호</th><th>사업부 / 부서</th><th>사용자</th><th>장비 / 모델</th><th data-column="spec">사양</th><th>상태</th><th data-column="grade">노후 등급</th></tr></thead><tbody>${result.data.map(a=>`<tr>${manage?`<td><input class="assetSelect" type="checkbox" value="${a.id}" aria-label="${esc(a.number)} 선택"></td>`:""}<td><a href="?asset=${a.id}">${esc(a.number)}</a></td><td>${esc(a.company)} · ${esc(a.organization)}</td><td>${esc(a.user)}</td><td>${esc(a.category)} · ${esc(a.maker)} / ${esc(a.model)}</td><td data-column="spec" class="muted">${esc(a.specification||"—")}</td><td><span class="assetStatus ${a.status}">${esc(a.status_label)}</span></td><td data-column="grade" class="${a.grade==="C"?"aged":""}">${esc(a.grade)}${a.grade==="C"?" · 5년 이상":""}</td></tr>`).join("")||`<tr><td colspan="${manage?8:7}">표시할 자산이 없습니다.</td></tr>`}</tbody></table></div>
+      <div class="assetListPagination"><span>${result.meta.total?((result.meta.page-1)*result.meta.page_size+1):0}–${Math.min(result.meta.page*result.meta.page_size,result.meta.total)} / ${result.meta.total}개</span><div><span>페이지당 ${result.meta.page_size}개</span>${result.meta.page>1?`<a href="${link({page:result.meta.page-1})}">이전</a>`:""}<b>${result.meta.page}</b>${result.meta.page*result.meta.page_size<result.meta.total?`<a href="${link({page:result.meta.page+1})}">다음</a>`:""}</div></div></div>`;
+    main.querySelector("[data-column-settings]").onclick=()=>{
+      showDialog("열 설정", '<label><input type="checkbox" data-toggle-column="spec" checked> 사양</label><label><input type="checkbox" data-toggle-column="grade" checked> 노후 등급</label><button data-close>닫기</button>');
+      dialog.querySelectorAll("[data-toggle-column]").forEach(input=>input.onchange=()=>main.querySelectorAll('[data-column="'+input.dataset.toggleColumn+'"]').forEach(cell=>cell.hidden=!input.checked));
     };
-    main.innerHTML =
-      heading(
-        portal ? "내 자산" : "자산 현황 · 목록",
-        portal
-          ? "지급받은 장비를 확인하고 문제가 있으면 지원을 요청하세요."
-          : "자산의 상세 사양과 배정 상태를 확인하고 관리합니다.",
-        !portal && me.roles.includes("asset_manager")
-          ? "<button class=\"secondary\" data-label-selected disabled>선택 라벨 PDF</button><a class=\"secondary assetExportLink\" href=\"/api/v1/admin/assets/export\">Excel 다운로드</a><button data-new-asset>＋ 자산 등록</button>"
-          : "",
-      ) +
-      `<form class="toolbar assetFilters" method="get" action="/${area}/assets"><input name="q" aria-label="자산 검색" placeholder="관리번호, 사용자, 모델, 시리얼번호 검색" value="${esc(q)}"><select name="category" aria-label="장비 구분"><option value="">전체 장비</option><option value="PC" ${category === "PC" ? "selected" : ""}>PC</option><option value="모니터" ${category === "모니터" ? "selected" : ""}>모니터</option></select><select name="company" aria-label="법인"><option value="">전체 법인</option>${companies.map(code => `<option value="${esc(code)}" ${company===code?"selected":""}>${esc(code)}</option>`).join("")}</select><select name="status" aria-label="자산 상태"><option value="">전체 상태</option><option value="IN_USE" ${status === "IN_USE" ? "selected" : ""}>사용</option><option value="IN_STOCK" ${status === "IN_STOCK" ? "selected" : ""}>보관</option><option value="REPAIR" ${status === "REPAIR" ? "selected" : ""}>수리</option><option value="LOST" ${status === "LOST" ? "selected" : ""}>분실</option><option value="DISPOSED" ${status === "DISPOSED" ? "selected" : ""}>폐기</option></select><button class="secondary">검색</button><a class="secondary filterReset" href="/${area}/assets">초기화</a></form><div class="tablewrap"><table><thead><tr>${!portal && me.roles.includes("asset_manager") ? '<th><input type="checkbox" data-select-all-assets aria-label="현재 페이지 자산 전체 선택"></th>' : ""}<th>관리번호</th><th>사업부 · 장비</th><th>사양 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}">${!portal && me.roles.includes("asset_manager") ? `<td><input type="checkbox" class="assetSelect" value="${a.id}" aria-label="${esc(a.number)} 선택"></td>` : ""}<td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="사업부 · 장비">${esc(a.company)} · ${esc(a.category)}</td><td data-label="사양 · 모델">${esc(a.maker)} ${esc(a.model)}<div class="muted">${esc(a.serial || "시리얼 미등록")}</div></td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label, a.status)}</td></tr>`).join("") || '<tr><td colspan="${!portal && me.roles.includes("asset_manager") ? 7 : 6}">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="${pageLink(result.meta.page - 1)}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="${pageLink(result.meta.page + 1)}">다음</a>` : ""}</div>`;
   }
   async function assetDetail(id) {
     const a = (await call(`/${area}/assets/${id}`)).data;
