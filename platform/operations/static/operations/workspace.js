@@ -307,10 +307,10 @@
           ? "지급받은 장비를 확인하고 문제가 있으면 지원을 요청하세요."
           : "자산의 상세 사양과 배정 상태를 확인하고 관리합니다.",
         !portal && me.roles.includes("asset_manager")
-          ? "<a class=\"secondary assetExportLink\" href=\"/api/v1/admin/assets/export\">Excel 다운로드</a><button data-new-asset>＋ 자산 등록</button>"
+          ? "<button class=\"secondary\" data-label-selected disabled>선택 라벨 PDF</button><a class=\"secondary assetExportLink\" href=\"/api/v1/admin/assets/export\">Excel 다운로드</a><button data-new-asset>＋ 자산 등록</button>"
           : "",
       ) +
-      `<form class="toolbar assetFilters" method="get" action="/${area}/assets"><input name="q" aria-label="자산 검색" placeholder="관리번호, 사용자, 모델, 시리얼번호 검색" value="${esc(q)}"><select name="category" aria-label="장비 구분"><option value="">전체 장비</option><option value="PC" ${category === "PC" ? "selected" : ""}>PC</option><option value="모니터" ${category === "모니터" ? "selected" : ""}>모니터</option></select><select name="company" aria-label="법인"><option value="">전체 법인</option>${companies.map(code => `<option value="${esc(code)}" ${company===code?"selected":""}>${esc(code)}</option>`).join("")}</select><select name="status" aria-label="자산 상태"><option value="">전체 상태</option><option value="IN_USE" ${status === "IN_USE" ? "selected" : ""}>사용</option><option value="IN_STOCK" ${status === "IN_STOCK" ? "selected" : ""}>보관</option><option value="REPAIR" ${status === "REPAIR" ? "selected" : ""}>수리</option><option value="LOST" ${status === "LOST" ? "selected" : ""}>분실</option><option value="DISPOSED" ${status === "DISPOSED" ? "selected" : ""}>폐기</option></select><button class="secondary">검색</button><a class="secondary filterReset" href="/${area}/assets">초기화</a></form><div class="tablewrap"><table><thead><tr><th>관리번호</th><th>사업부 · 장비</th><th>사양 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}"><td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="사업부 · 장비">${esc(a.company)} · ${esc(a.category)}</td><td data-label="사양 · 모델">${esc(a.maker)} ${esc(a.model)}<div class="muted">${esc(a.serial || "시리얼 미등록")}</div></td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label, a.status)}</td></tr>`).join("") || '<tr><td colspan="6">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="${pageLink(result.meta.page - 1)}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="${pageLink(result.meta.page + 1)}">다음</a>` : ""}</div>`;
+      `<form class="toolbar assetFilters" method="get" action="/${area}/assets"><input name="q" aria-label="자산 검색" placeholder="관리번호, 사용자, 모델, 시리얼번호 검색" value="${esc(q)}"><select name="category" aria-label="장비 구분"><option value="">전체 장비</option><option value="PC" ${category === "PC" ? "selected" : ""}>PC</option><option value="모니터" ${category === "모니터" ? "selected" : ""}>모니터</option></select><select name="company" aria-label="법인"><option value="">전체 법인</option>${companies.map(code => `<option value="${esc(code)}" ${company===code?"selected":""}>${esc(code)}</option>`).join("")}</select><select name="status" aria-label="자산 상태"><option value="">전체 상태</option><option value="IN_USE" ${status === "IN_USE" ? "selected" : ""}>사용</option><option value="IN_STOCK" ${status === "IN_STOCK" ? "selected" : ""}>보관</option><option value="REPAIR" ${status === "REPAIR" ? "selected" : ""}>수리</option><option value="LOST" ${status === "LOST" ? "selected" : ""}>분실</option><option value="DISPOSED" ${status === "DISPOSED" ? "selected" : ""}>폐기</option></select><button class="secondary">검색</button><a class="secondary filterReset" href="/${area}/assets">초기화</a></form><div class="tablewrap"><table><thead><tr>${!portal && me.roles.includes("asset_manager") ? '<th><input type="checkbox" data-select-all-assets aria-label="현재 페이지 자산 전체 선택"></th>' : ""}<th>관리번호</th><th>사업부 · 장비</th><th>사양 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}">${!portal && me.roles.includes("asset_manager") ? `<td><input type="checkbox" class="assetSelect" value="${a.id}" aria-label="${esc(a.number)} 선택"></td>` : ""}<td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="사업부 · 장비">${esc(a.company)} · ${esc(a.category)}</td><td data-label="사양 · 모델">${esc(a.maker)} ${esc(a.model)}<div class="muted">${esc(a.serial || "시리얼 미등록")}</div></td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label, a.status)}</td></tr>`).join("") || '<tr><td colspan="6">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="${pageLink(result.meta.page - 1)}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="${pageLink(result.meta.page + 1)}">다음</a>` : ""}</div>`;
   }
   async function assetDetail(id) {
     const a = (await call(`/${area}/assets/${id}`)).data;
@@ -746,7 +746,11 @@
         });
         await ticketDetail(currentTicket.id);
         toast("요청을 담당하게 되었습니다.");
-      } else if (button.dataset.labelAsset) {
+      } else if (button.dataset.labelAsset || button.hasAttribute("data-label-selected")) {
+        const assetIds = button.dataset.labelAsset
+          ? [button.dataset.labelAsset]
+          : [...document.querySelectorAll(".assetSelect:checked")].map(input => input.value);
+        if (!assetIds.length) throw Error("라벨을 출력할 자산을 선택하세요.");
         const response = await fetch("/api/v1/admin/assets/labels", {
           method: "POST",
           credentials: "same-origin",
@@ -754,7 +758,7 @@
             "Content-Type": "application/json",
             "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
           },
-          body: JSON.stringify({asset_ids: [button.dataset.labelAsset]}),
+          body: JSON.stringify({asset_ids: assetIds}),
         });
         if (!response.ok) {
           const result = await response.json().catch(() => ({}));
@@ -786,6 +790,18 @@
     } catch (error) {
       toast(error.message);
       button.disabled = false;
+    }
+  });
+  document.addEventListener("change", event => {
+    if (event.target.matches("[data-select-all-assets]")) {
+      document.querySelectorAll(".assetSelect").forEach(input => { input.checked = event.target.checked; });
+    }
+    if (event.target.matches(".assetSelect, [data-select-all-assets]")) {
+      const selected = document.querySelectorAll(".assetSelect:checked").length;
+      const action = document.querySelector("[data-label-selected]");
+      if (action) { action.disabled = selected === 0; action.textContent = `선택 라벨 PDF (${selected})`; }
+      const all = document.querySelector("[data-select-all-assets]");
+      if (all) all.checked = selected > 0 && selected === document.querySelectorAll(".assetSelect").length;
     }
   });
   async function render() {
