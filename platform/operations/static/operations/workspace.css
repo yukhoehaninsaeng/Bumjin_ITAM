@@ -3331,3 +3331,170 @@ button:disabled {
     cursor: pointer;
   }
 }
+
+
+/* Figma-aligned shared frame for the integrated ticket and asset workspace */
+:root {
+  --brand: #dd254c;
+  --brandSoft: rgba(221, 37, 76, 0.08);
+  --edge: #e2e4e8;
+  color: #242832;
+  background: #fff;
+}
+body {
+  padding-left: 216px;
+  background: #fff;
+}
+header {
+  position: fixed;
+  inset: 0 0 auto 216px;
+  z-index: 21;
+  min-height: 64px;
+  height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--edge);
+  background: #fff;
+  color: #242832;
+  gap: 16px;
+}
+header .globalBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+header .globalBrand b {
+  color: #242832;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+header .globalBrand > span {
+  width: 1px;
+  height: 20px;
+  background: var(--edge);
+}
+header .globalBrand strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+header .headerMeta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header .headerMeta > span {
+  color: #606773;
+  font-size: 13px;
+}
+header .menuToggle {
+  display: none;
+}
+.appSidebar {
+  top: 64px;
+  width: 216px;
+  padding: 18px 14px 20px;
+  background: #fff;
+  border-right: 1px solid var(--edge);
+}
+.sidebarBrand {
+  display: none;
+}
+.sidebarHeading {
+  font-size: 17px;
+  padding: 0 8px;
+  color: #242832;
+}
+.sidebarCaption {
+  margin: 5px 8px 20px;
+  color: #606773;
+}
+.sidebarCreate {
+  border-radius: 4px;
+  min-height: 38px;
+  margin-bottom: 20px;
+}
+.appSidebar nav {
+  gap: 4px;
+}
+.navItem {
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: #434852;
+  font-size: 13px;
+}
+.navItem.active {
+  background: var(--brandSoft);
+  color: var(--brand);
+  font-weight: 700;
+}
+.navItem:hover {
+  background: var(--brandSoft);
+  color: var(--brand);
+}
+.sidebarFooter {
+  border-color: var(--edge);
+}
+main {
+  max-width: none;
+  margin: 64px auto 0;
+  padding: 26px 30px 40px;
+}
+button {
+  border-radius: 4px;
+  background: var(--brand);
+}
+button:hover {
+  background: #c51f43;
+}
+button.secondary {
+  border-radius: 4px;
+}
+.card,
+.filterPanel,
+.insightCard,
+.tablewrap,
+dialog {
+  border-radius: 5px;
+  border-color: var(--edge);
+}
+th {
+  background: #f6f7f9;
+}
+input,
+select,
+textarea {
+  border-radius: 4px;
+  border-color: var(--edge);
+}
+@media (max-width: 1050px) {
+  body { padding-left: 216px; }
+  .appSidebar { width: 216px; }
+  main { padding-right: 22px; padding-left: 22px; }
+}
+@media (max-width: 800px) {
+  body { padding-left: 0; }
+  header {
+    inset: 0 0 auto;
+    height: auto;
+    min-height: 58px;
+    padding: 8px 14px;
+  }
+  header .menuToggle { display: block; }
+  header .globalBrand b { font-size: 16px; }
+  header .globalBrand strong { font-size: 13px; }
+  header .headerMeta > span { display: none; }
+  .appSidebar {
+    top: 58px;
+    width: min(280px, 85vw);
+    padding-top: 18px;
+  }
+  .sidebarBrand { display: flex; }
+  main { margin-top: 58px; padding: 18px 14px 32px; }
+}
+@media print {
+  body { padding-left: 0; }
+  header, .appSidebar, .navBackdrop { display: none !important; }
+  main { margin: 0; padding: 0; }
+}
