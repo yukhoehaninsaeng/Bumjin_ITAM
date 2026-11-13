@@ -367,6 +367,50 @@ def asset_assign(request, asset_id, returning=False):
 
 
 @api_view(["GET"])
+def asset_qr(request, asset_id):
+    asset = get_object_or_404(policies.assets_visible(request.user), pk=asset_id)
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics import renderSVG
+
+    url = request.build_absolute_uri(f"/a/{asset.id}")
+    qr = QrCodeWidget(url, barLevel="H", barBorder=4)
+    x0, y0, x1, y1 = qr.getBounds()
+    drawing = Drawing(240, 240, transform=[240 / (x1 - x0), 0, 0, 240 / (y1 - y0), 0, 0])
+    drawing.add(qr)
+    return HttpResponse(renderSVG.drawToString(drawing), content_type="image/svg+xml")
+
+
+@api_view(["POST"])
+def asset_labels(request):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("라벨 출력 권한이 없습니다.")
+    ids = request.data.get("asset_ids")
+    if not isinstance(ids, list) or not 1 <= len(ids) <= 500:
+        raise ValidationError({"asset_ids": "자산 1~500개를 선택하세요."})
+    if len(set(map(str, ids))) != len(ids):
+        raise ValidationError({"asset_ids": "중복 자산이 포함되어 있습니다."})
+    qs = Asset.objects.filter(
+        company_scope(request.user, "asset_manager"), pk__in=ids
+    ).select_related("company", "organization")
+    assets_by_id = {str(asset.id): asset for asset in qs}
+    if len(assets_by_id) != len(ids):
+        raise NotFound("선택한 자산을 찾을 수 없거나 출력 권한이 없습니다.")
+    ordered = [{"id": str(asset.id), "number": asset.number} for asset in (assets_by_id[str(i)] for i in ids)]
+    from .label_pdf import make_pdf
+
+    root = Path(__file__).resolve().parents[2]
+    logo = root / "public" / "qr-label-logo.svg"
+    try:
+        pdf = make_pdf(ordered, request.build_absolute_uri("/"), logo, request.data)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="Bumjin_QR_labels.pdf"'
+    return response
+
+
+@api_view(["GET"])
 def organizations(request):
     return Response(
         {
