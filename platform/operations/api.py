@@ -130,6 +130,7 @@ def asset_json(asset):
         "status_label": asset.get_status_display(),
         "company": asset.company.code,
         "organization": asset.organization.name,
+        "organization_id": str(asset.organization_id),
         "version": asset.version,
         "user": assignment.employee.name if assignment and assignment.employee else "미배정 / 공용",
     }
@@ -341,6 +342,14 @@ def asset_detail(request, asset_id, portal=False):
         result["tickets"] = [
             ticket_json(t) for t in policies.tickets_visible(request.user).filter(assets=asset)
         ]
+        recent = AuditEvent.objects.filter(
+            company=asset.company, action__startswith="asset."
+        ).order_by("-created_at")[:100]
+        result["history"] = [
+            {"action": event.action, "created_at": event.created_at.isoformat(), "data": event.data}
+            for event in recent
+            if (event.data or {}).get("asset_id") == str(asset.id)
+        ][:10]
     return Response({"data": result})
 
 
