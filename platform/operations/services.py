@@ -329,12 +329,91 @@ def register_asset(user, payload):
         maker=payload["maker"],
         model=payload["model"],
         serial=payload["serial"],
-        legacy_data={"device_type": payload["device_type"]},
+        legacy_data={**payload.get("legacy_data", {}), "device_type": payload["device_type"]},
     )
     AuditEvent.objects.create(
         actor=user,
         company=company,
         action="asset.created",
         data={"asset_id": str(asset.id), "number": asset.number},
+    )
+    return asset
+
+
+@transaction.atomic
+def update_asset(user, asset_id, payload):
+    from .models import Organization
+
+    asset = (
+        Asset.objects.filter(company_scope(user, "asset_manager"))
+        .select_for_update()
+        .filter(pk=asset_id)
+        .first()
+    )
+    if not asset:
+        raise NotFound()
+    require_version(asset, payload["expected_version"])
+    before = {
+        "number": asset.number,
+        "organization_id": str(asset.organization_id),
+        "category": asset.category,
+        "maker": asset.maker,
+        "model": asset.model,
+        "serial": asset.serial,
+        "status": asset.status,
+        "legacy_data": asset.legacy_data,
+    }
+    if "organization_id" in payload:
+        organization = Organization.objects.filter(
+            company_scope(user, "asset_manager"),
+            pk=payload["organization_id"],
+            company=asset.company,
+        ).first()
+        if not organization:
+            raise NotFound()
+        asset.organization = organization
+    if "number" in payload:
+        number = payload["number"].strip()
+        if Asset.objects.filter(company=asset.company, number=number).exclude(pk=asset.pk).exists():
+            raise Conflict("같은 법인에 동일한 관리번호가 있습니다.")
+        asset.number = number
+    for field in ["category", "maker", "model", "serial"]:
+        if field in payload:
+            setattr(asset, field, payload[field])
+    if "status" in payload:
+        active = AssetAssignment.objects.filter(asset=asset, returned_at__isnull=True).exists()
+        status = payload["status"]
+        if active and status != "IN_USE":
+            raise Conflict("직원이 배정된 자산은 먼저 수거 처리해야 상태를 변경할 수 있습니다.")
+        if not active and status == "IN_USE":
+            raise Conflict("사용 중 상태로 바꾸려면 직원 배정 기능을 사용하세요.")
+        asset.status = status
+    if "legacy_data" in payload:
+        merged = dict(asset.legacy_data or {})
+        incoming = payload["legacy_data"]
+        if "software" in incoming:
+            merged["software"] = {**(merged.get("software") or {}), **incoming.pop("software")}
+        merged.update(incoming)
+        asset.legacy_data = merged
+    asset.version += 1
+    asset.save()
+    AuditEvent.objects.create(
+        actor=user,
+        company=asset.company,
+        action="asset.updated",
+        data={
+            "asset_id": str(asset.id),
+            "before": before,
+            "after": {
+                "number": asset.number,
+                "organization_id": str(asset.organization_id),
+                "category": asset.category,
+                "maker": asset.maker,
+                "model": asset.model,
+                "serial": asset.serial,
+                "status": asset.status,
+                "legacy_data": asset.legacy_data,
+            },
+        },
     )
     return asset
