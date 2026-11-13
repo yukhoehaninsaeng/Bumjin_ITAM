@@ -3715,3 +3715,16 @@ body.loginBody {
   font-size: 12px;
 }
 .assetHistoryItem time { flex-shrink: 0; color: #7b818b; font-size: 11px; }
+
+.assetQrCard {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: #fff;
+}
+.assetQrCard h2 { justify-self: stretch; margin: 0; font-size: 14px; }
+.assetQrCard img { width: 180px; max-width: 100%; height: auto; }
+.assetQrCard button { width: 100%; }
