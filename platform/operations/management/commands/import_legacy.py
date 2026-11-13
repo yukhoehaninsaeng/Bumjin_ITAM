@@ -201,7 +201,7 @@ class Command(BaseCommand):
             for row in range(3, 18):
                 values = {key: clean(resolve_merged(sheet, row, col)) for key, col in MAINT_FIELDS.items()}
                 if values["service"]:
-                    self.add_contract_record(records, issues, values, sheet_name, row)
+                    self.add_contract_record(records, issues, values, "2.전산 유지보수", row)
         if "앱_유지보수" in book.sheetnames:
             sheet = book["앱_유지보수"]
             for row in range(2, sheet.max_row + 1):
