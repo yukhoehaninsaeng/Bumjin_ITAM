@@ -339,7 +339,7 @@
     main.innerHTML =
       `<div class="assetBreadcrumb"><a href="/${area}/assets">${portal ? "내 자산" : "자산 목록"}</a><span>›</span><span>자산 상세</span></div>` +
       heading(a.number, `${a.company} · ${a.category} · ${a.model}`, `<span class="pill" data-state="${esc(a.status)}">${esc(a.status_label)}</span>`) +
-      `<div class="figmaAssetDetail"><section class="assetPrimary"><section class="assetInfoPanel"><h2 class="sectionTitle">장비 정보</h2><p class="detailPanelDescription">자산 기본 정보와 사양을 확인합니다.</p><div class="assetSpecRows">${deviceRows.map(([k,v]) => `<div class="assetSpecRow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div></section><section class="assetInfoPanel softwareSection"><h2 class="sectionTitle">소프트웨어</h2><p class="detailPanelDescription">자산에 기록된 소프트웨어 정보입니다.</p><div class="assetSoftwareGrid">${softwareRows.map(([k,v]) => `<div class="assetSoftwareRow"><span>${esc(k)}</span><b>${esc(v || "미기재")}</b></div>`).join("")}</div></section></section><aside class="assetAside"><section class="assetOwnerCard"><h2>현재 사용자</h2><div class="assetOwnerBody"><strong class="ownerName">${esc(a.user)}</strong><p class="ownerMeta">${esc(a.organization)}</p><div class="assetActionStack"><button data-request-asset="${a.id}">이 자산으로 지원 요청</button>${!portal && me.roles.includes("asset_manager") ? `<button class="secondary" data-edit-asset="${a.id}">자산 정보 수정</button>${a.status === "IN_STOCK" ? `<button class="secondary" data-assign-asset="${a.id}" data-version="${a.version}">직원에게 배정</button>` : `<button class="secondary" data-return-asset="${a.id}" data-version="${a.version}">수거 · 반납</button>`}` : ""}</div></div></section><section class="assetHistoryCard"><h2>최근 변경 이력</h2>${history.length ? history.map(item => `<div class="assetHistoryItem"><b>${esc(historyLabel[item.action] || item.action)}</b><time>${esc(date(item.created_at))}</time></div>`).join("") : '<p class="muted">기록된 변경 이력이 없습니다.</p>'}</section><section class="assetHistoryCard"><h2>관련 티켓</h2>${tickets.length ? tickets.map(t => `<a class="assetTicketLink" href="/admin/tickets?ticket=${encodeURIComponent(t.id)}"><b>${esc(t.number)}</b><span>${esc(t.title)}</span>${pill(t.status_label, t.status)}</a>`).join("") : '<p class="muted">연결된 티켓이 없습니다.</p>'}</section></aside></div><div class="assetDetailFooter"><a class="secondary" href="/${area}/assets">← 자산 목록</a></div>`;
+      `<div class="figmaAssetDetail"><section class="assetPrimary"><section class="assetInfoPanel"><h2 class="sectionTitle">장비 정보</h2><p class="detailPanelDescription">자산 기본 정보와 사양을 확인합니다.</p><div class="assetSpecRows">${deviceRows.map(([k,v]) => `<div class="assetSpecRow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div></section><section class="assetInfoPanel softwareSection"><h2 class="sectionTitle">소프트웨어</h2><p class="detailPanelDescription">자산에 기록된 소프트웨어 정보입니다.</p><div class="assetSoftwareGrid">${softwareRows.map(([k,v]) => `<div class="assetSoftwareRow"><span>${esc(k)}</span><b>${esc(v || "미기재")}</b></div>`).join("")}</div></section></section><aside class="assetAside"><section class="assetOwnerCard"><h2>현재 사용자</h2><div class="assetOwnerBody"><strong class="ownerName">${esc(a.user)}</strong><p class="ownerMeta">${esc(a.organization)}</p><div class="assetActionStack"><button data-request-asset="${a.id}">이 자산으로 지원 요청</button>${!portal && me.roles.includes("asset_manager") ? `<button class="secondary" data-edit-asset="${a.id}">자산 정보 수정</button>${a.status === "IN_STOCK" ? `<button class="secondary" data-assign-asset="${a.id}" data-version="${a.version}">직원에게 배정</button>` : `<button class="secondary" data-return-asset="${a.id}" data-version="${a.version}">수거 · 반납</button>`}` : ""}</div></div></section>${!portal && me.roles.includes("asset_manager") ? `<section class="assetQrCard"><h2>QR 코드</h2><img src="/api/v1/admin/assets/${a.id}/qr" alt="${esc(a.number)} QR 코드"><button class="secondary" data-label-asset="${a.id}">40mm 라벨 PDF</button></section>` : ""}<section class="assetHistoryCard"><h2>최근 변경 이력</h2>${history.length ? history.map(item => `<div class="assetHistoryItem"><b>${esc(historyLabel[item.action] || item.action)}</b><time>${esc(date(item.created_at))}</time></div>`).join("") : '<p class="muted">기록된 변경 이력이 없습니다.</p>'}</section><section class="assetHistoryCard"><h2>관련 티켓</h2>${tickets.length ? tickets.map(t => `<a class="assetTicketLink" href="/admin/tickets?ticket=${encodeURIComponent(t.id)}"><b>${esc(t.number)}</b><span>${esc(t.title)}</span>${pill(t.status_label, t.status)}</a>`).join("") : '<p class="muted">연결된 티켓이 없습니다.</p>'}</section></aside></div><div class="assetDetailFooter"><a class="secondary" href="/${area}/assets">← 자산 목록</a></div>`;
   }
   async function people() {
     const [orgs, employees] = await Promise.all([
@@ -634,7 +634,26 @@
         });
         await ticketDetail(currentTicket.id);
         toast("요청을 담당하게 되었습니다.");
-      } else if (button.dataset.editAsset) {
+      } else if (button.dataset.labelAsset) {
+        const response = await fetch("/api/v1/admin/assets/labels", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
+          },
+          body: JSON.stringify({asset_ids: [button.dataset.labelAsset]}),
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          throw Error(result.error?.message || "라벨 PDF를 만들지 못했습니다.");
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url; link.download = "Bumjin_QR_labels.pdf"; link.click();
+        URL.revokeObjectURL(url);
+      } } else if (button.dataset.editAsset) {
         const asset = (await call(`/admin/assets/${button.dataset.editAsset}`)).data;
         await assetEditor(asset);
       } else if (button.dataset.assignAsset)
