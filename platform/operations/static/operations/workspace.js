@@ -464,6 +464,14 @@
       if (parent) children.get(parent.id).push(o);
       else roots.get(o.company).push(o);
     }
+    function breadcrumb(id) {
+      const labels = [], seen = new Set();
+      let node = byId.get(id);
+      while (node && !seen.has(node.id)) {
+        seen.add(node.id); labels.unshift(node.name); node = validParent(node);
+      }
+      return labels.join(" / ");
+    }
     const sortOrg = (a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name, "ko");
     children.forEach(list => list.sort(sortOrg));
     roots.forEach(list => list.sort(sortOrg));
@@ -554,8 +562,23 @@
         description="선택한 사용자의 소속과 연락처입니다.";
       }
       list.sort((a,b)=>a.name.localeCompare(b.name,"ko"));
-      panel.innerHTML=`<div class="directorySelectionHead"><div><h2>${esc(title)}</h2><p>${esc(description)}</p></div><span class="directoryCount">${list.length}명</span></div>${list.length ? `<div class="tablewrap"><table class="directoryTable"><thead><tr><th>이름</th><th>계정 ID</th><th>상태</th><th>법인</th><th>소속 부서</th><th>이메일</th></tr></thead><tbody>${list.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.groupware_uid || e.directory_uid || "미연결")}</td><td>${e.active === false ? "퇴사" : "재직"}</td><td>${esc(e.company_label || e.company)}</td><td>${esc(e.organization)}</td><td>${e.email ? `<a href="mailto:${esc(e.email)}">${esc(e.email)}</a>` : '<span class="muted">미등록</span>'}</td></tr>`).join("")}</tbody></table></div>` : '<div class="directoryEmpty">조건에 맞는 사용자가 없습니다.<br><small>조직을 선택하거나 검색 조건을 변경해주세요.</small></div>'}`;
+      panel.innerHTML=`<div class="directorySelectionHead"><div><h2>${esc(title)}</h2><p>${esc(description)}</p></div><span class="directoryCount">${list.length}명</span></div>${list.length ? `<div class="tablewrap"><table class="directoryTable"><thead><tr><th>이름</th><th>계정 ID</th><th>상태</th><th>법인</th><th>소속 부서</th><th>이메일</th><th>LDAP 부서</th><th>관리</th></tr></thead><tbody>${list.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.groupware_uid || e.directory_uid || "미연결")}</td><td>${e.active === false ? "퇴사" : "재직"}</td><td>${esc(e.company_label || e.company)}</td><td>${esc(e.organization)}</td><td>${e.email ? `<a href="mailto:${esc(e.email)}">${esc(e.email)}</a>` : '<span class="muted">미등록</span>'}</td><td>${esc(({synced:"반영 완료",pending:"반영 대기",failed:"반영 실패"})[e.ldap_department?.status] || "미반영")}${e.ldap_department?.message ? `<small class="muted">${esc(e.ldap_department.message)}</small>` : ""}</td><td>${e.active !== false ? `<button type="button" class="secondary" data-department-edit="${esc(e.id)}">부서 지정 / 재반영</button>` : "—"}</td></tr>`).join("")}</tbody></table></div>` : '<div class="directoryEmpty">조건에 맞는 사용자가 없습니다.<br><small>조직을 선택하거나 검색 조건을 변경해주세요.</small></div>'}`;
     }
+    panel.onclick = event => {
+      const button = event.target.closest("[data-department-edit]");
+      if (!button) return;
+      const employee = employees.find(e => e.id === button.dataset.departmentEdit);
+      showDialog("부서 지정 · NAS LDAP 반영", `<form id="departmentForm"><p>${esc(employee.name)} · ${esc(employee.directory_uid || employee.groupware_uid)}</p><label>소속 부서<select name="organization_id" required>${orgs.map(o => `<option value="${esc(o.id)}" ${o.id === employee.organization_id ? "selected" : ""}>${esc(o.company + " · " + breadcrumb(o.id))}</option>`).join("")}</select></label><p class="muted">부서를 저장한 뒤 NAS LDAP 부서 칸에 반영합니다. 실패하면 부서는 저장되며, 같은 버튼으로 다시 반영할 수 있습니다.</p><div class="formError" role="alert"></div><button type="submit">저장 및 LDAP 반영</button></form>`);
+      const form = document.getElementById("departmentForm");
+      form.onsubmit = event => {
+        event.preventDefault();
+        submit(form, async () => {
+          const result = await call(`/admin/employees/${employee.id}/department`, {method:"POST", body:{organization_id:form.elements.organization_id.value, expected_version:employee.version}});
+          closeDialog(); await people();
+          toast(result.data.ldap_department.status === "synced" ? "부서 저장 및 NAS LDAP 반영 완료" : "부서는 저장했습니다. LDAP 반영 실패 사유를 확인하세요.");
+        });
+      };
+    };
     tree.addEventListener("toggle", event => {
       const key=event.target.dataset.treeKey;
       if (key) event.target.open ? expanded.add(key) : expanded.delete(key);
@@ -971,3 +994,4 @@
   document.getElementById("refreshPage").onclick = render;
   render();
 })();
+
