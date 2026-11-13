@@ -69,6 +69,7 @@ class AssetSoftwareData(StrictSerializer):
 class AssetLegacyData(StrictSerializer):
     device_type = serializers.ChoiceField(choices=["NOTEBOOK", "DESKTOP"], required=False)
     cpu = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    bits = serializers.CharField(max_length=40, required=False, allow_blank=True)
     ram = serializers.CharField(max_length=80, required=False, allow_blank=True)
     ssd = serializers.CharField(max_length=80, required=False, allow_blank=True)
     hdd = serializers.CharField(max_length=80, required=False, allow_blank=True)
@@ -77,6 +78,7 @@ class AssetLegacyData(StrictSerializer):
     os_edition = serializers.CharField(max_length=120, required=False, allow_blank=True)
     size = serializers.CharField(max_length=40, required=False, allow_blank=True)
     purchase_date = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    manufacture_date = serializers.CharField(max_length=20, required=False, allow_blank=True)
     note = serializers.CharField(max_length=2000, required=False, allow_blank=True)
     software = AssetSoftwareData(required=False)
 
