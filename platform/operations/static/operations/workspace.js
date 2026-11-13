@@ -429,14 +429,15 @@
     };
   }
   async function people() {
+    const employment = ["active", "retired", "all"].includes(params.get("employment")) ? params.get("employment") : "active";
     const [orgResult, first] = await Promise.all([
-      call("/admin/organizations"),
-      call("/admin/employees?directory=1&page_size=100"),
+      call("/admin/organizations?directory=1&employment=" + employment),
+      call("/admin/employees?directory=1&page_size=100&employment=" + employment),
     ]);
     const employees = [...first.data];
     if (first.meta) {
       for (let page = 2; page <= Math.ceil(first.meta.total / first.meta.page_size); page++) {
-        employees.push(...(await call(`/admin/employees?directory=1&page_size=100&page=${page}`)).data);
+        employees.push(...(await call(`/admin/employees?directory=1&page_size=100&employment=${employment}&page=${page}`)).data);
       }
     }
     const orgs = orgResult.data;
@@ -463,7 +464,7 @@
       if (parent) children.get(parent.id).push(o);
       else roots.get(o.company).push(o);
     }
-    const sortOrg = (a, b) => a.name.localeCompare(b.name, "ko");
+    const sortOrg = (a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name, "ko");
     children.forEach(list => list.sort(sortOrg));
     roots.forEach(list => list.sort(sortOrg));
     const descendants = new Map();
@@ -494,8 +495,11 @@
       }
     }
     main.innerHTML = heading("사용자 · 조직", "법인과 부서를 펼쳐 사용자를 찾고, 선택한 조직의 소속 사용자를 확인하세요.") +
-      `<div class="directoryControls"><label><span class="sr-only">조직 또는 사용자 검색</span><input id="directorySearch" type="search" placeholder="이름, 이메일, 부서 검색" autocomplete="off"></label><label><span class="sr-only">법인</span><select id="directoryCompany"><option value="">전체 법인</option>${companies.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></label></div>
+      `<div class="directoryControls"><label><span class="sr-only">재직 상태</span><select id="directoryEmployment">${[["active","재직자"],["retired","퇴사자"],["all","전체 사용자"]].map(([value,label]) => `<option value="${value}" ${value===employment?"selected":""}>${label}</option>`).join("")}</select></label><label><span class="sr-only">조직 또는 사용자 검색</span><input id="directorySearch" type="search" placeholder="이름, 이메일, 부서 검색" autocomplete="off"></label><label><span class="sr-only">법인</span><select id="directoryCompany"><option value="">전체 법인</option>${companies.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></label></div>
       <div class="directoryLayout"><aside class="directoryTreePanel"><div class="directoryPanelHead"><h2>조직도</h2><div><button type="button" class="secondary" data-tree-expand>모두 펼치기</button><button type="button" class="secondary" data-tree-collapse>접기</button></div></div><nav id="directoryTree" aria-label="법인 및 부서별 사용자"></nav></aside><section class="directoryPeoplePanel" id="directoryPeople" aria-live="polite"></section></div>`;
+    document.getElementById("directoryEmployment").onchange = event => {
+      const url = new URL(location.href); url.searchParams.set("employment",event.target.value); url.searchParams.delete("organization"); location.href=url.toString();
+    };
     const tree = document.getElementById("directoryTree");
     const panel = document.getElementById("directoryPeople");
     function organizationPath(employee) {
@@ -536,7 +540,7 @@
     }
     function drawPeople() {
       let list = employees.filter(e => (!company || e.company===company) && matches(e));
-      let title = "전체 사용자", description = "조회 권한이 있는 재직 사용자입니다.";
+      let title = employment === "retired" ? "퇴사자" : "전체 사용자", description = "그룹웨어 부서 매핑과 재직 상태를 기준으로 표시합니다.";
       if (selected.kind === "company") {
         list = list.filter(e => e.company===selected.id); title=selected.id;
         description="법인 전체 사용자를 표시합니다.";
@@ -550,7 +554,7 @@
         description="선택한 사용자의 소속과 연락처입니다.";
       }
       list.sort((a,b)=>a.name.localeCompare(b.name,"ko"));
-      panel.innerHTML=`<div class="directorySelectionHead"><div><h2>${esc(title)}</h2><p>${esc(description)}</p></div><span class="directoryCount">${list.length}명</span></div>${list.length ? `<div class="tablewrap"><table class="directoryTable"><thead><tr><th>이름</th><th>법인</th><th>소속 부서</th><th>이메일</th></tr></thead><tbody>${list.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.company)}</td><td>${esc(e.organization)}</td><td>${e.email ? `<a href="mailto:${esc(e.email)}">${esc(e.email)}</a>` : '<span class="muted">미등록</span>'}</td></tr>`).join("")}</tbody></table></div>` : '<div class="directoryEmpty">조건에 맞는 사용자가 없습니다.<br><small>조직을 선택하거나 검색 조건을 변경해주세요.</small></div>'}`;
+      panel.innerHTML=`<div class="directorySelectionHead"><div><h2>${esc(title)}</h2><p>${esc(description)}</p></div><span class="directoryCount">${list.length}명</span></div>${list.length ? `<div class="tablewrap"><table class="directoryTable"><thead><tr><th>이름</th><th>계정 ID</th><th>상태</th><th>법인</th><th>소속 부서</th><th>이메일</th></tr></thead><tbody>${list.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.groupware_uid || e.directory_uid || "미연결")}</td><td>${e.active === false ? "퇴사" : "재직"}</td><td>${esc(e.company)}</td><td>${esc(e.organization)}</td><td>${e.email ? `<a href="mailto:${esc(e.email)}">${esc(e.email)}</a>` : '<span class="muted">미등록</span>'}</td></tr>`).join("")}</tbody></table></div>` : '<div class="directoryEmpty">조건에 맞는 사용자가 없습니다.<br><small>조직을 선택하거나 검색 조건을 변경해주세요.</small></div>'}`;
     }
     tree.addEventListener("toggle", event => {
       const key=event.target.dataset.treeKey;
