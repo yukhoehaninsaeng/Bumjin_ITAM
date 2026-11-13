@@ -12,6 +12,7 @@ from .models import (
     AuditEvent,
     Employee,
     IdempotencyRecord,
+    MaintenanceContract,
     SupportTeam,
     Ticket,
     TicketMessage,
@@ -417,3 +418,101 @@ def update_asset(user, asset_id, payload):
         },
     )
     return asset
+
+
+@transaction.atomic
+def create_maintenance_contract(user, payload):
+    from .models import Organization
+
+    organization = Organization.objects.filter(
+        company_scope(user, "asset_manager"), pk=payload["organization_id"]
+    ).first()
+    if not organization:
+        raise NotFound()
+    if payload.get("starts_on") and payload.get("ends_on") and payload["ends_on"] < payload["starts_on"]:
+        raise ValidationError("계약 종료일은 시작일보다 빠를 수 없습니다.")
+    costs = {str(year): str(amount) for year, amount in payload.get("costs", {}).items()}
+    contract = MaintenanceContract.objects.create(
+        company=organization.company,
+        organization=organization,
+        vendor=payload["vendor"],
+        service=payload["service"],
+        quantity=payload.get("quantity", 1),
+        period=payload.get("period", ""),
+        starts_on=payload.get("starts_on"),
+        ends_on=payload.get("ends_on"),
+        costs=costs,
+        contact=payload.get("contact", ""),
+        note=payload.get("note", ""),
+    )
+    AuditEvent.objects.create(
+        actor=user,
+        company=contract.company,
+        action="maintenance.created",
+        data={"contract_id": str(contract.id), "service": contract.service},
+    )
+    return contract
+
+
+@transaction.atomic
+def update_maintenance_contract(user, contract_id, payload):
+    from .models import Organization
+
+    contract = (
+        MaintenanceContract.objects.filter(company_scope(user, "asset_manager"))
+        .select_for_update()
+        .filter(pk=contract_id)
+        .first()
+    )
+    if not contract:
+        raise NotFound()
+    require_version(contract, payload["expected_version"])
+    before = {
+        "vendor": contract.vendor,
+        "service": contract.service,
+        "quantity": contract.quantity,
+        "period": contract.period,
+        "starts_on": contract.starts_on.isoformat() if contract.starts_on else None,
+        "ends_on": contract.ends_on.isoformat() if contract.ends_on else None,
+        "costs": contract.costs,
+        "contact": contract.contact,
+        "note": contract.note,
+        "active": contract.active,
+    }
+    if "organization_id" in payload:
+        organization = Organization.objects.filter(
+            company_scope(user, "asset_manager"),
+            pk=payload["organization_id"],
+            company=contract.company,
+        ).first()
+        if not organization:
+            raise NotFound()
+        contract.organization = organization
+    for field in ["vendor", "service", "quantity", "period", "starts_on", "ends_on", "contact", "note", "active"]:
+        if field in payload:
+            setattr(contract, field, payload[field])
+    if "costs" in payload:
+        contract.costs = {str(year): str(amount) for year, amount in payload["costs"].items()}
+    if contract.starts_on and contract.ends_on and contract.ends_on < contract.starts_on:
+        raise ValidationError("계약 종료일은 시작일보다 빠를 수 없습니다.")
+    contract.version += 1
+    contract.save()
+    after = {
+        "vendor": contract.vendor,
+        "service": contract.service,
+        "quantity": contract.quantity,
+        "period": contract.period,
+        "starts_on": contract.starts_on.isoformat() if contract.starts_on else None,
+        "ends_on": contract.ends_on.isoformat() if contract.ends_on else None,
+        "costs": contract.costs,
+        "contact": contract.contact,
+        "note": contract.note,
+        "active": contract.active,
+    }
+    AuditEvent.objects.create(
+        actor=user,
+        company=contract.company,
+        action="maintenance.updated",
+        data={"contract_id": str(contract.id), "before": before, "after": after},
+    )
+    return contract
