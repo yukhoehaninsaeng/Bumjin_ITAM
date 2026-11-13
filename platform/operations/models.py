@@ -154,6 +154,33 @@ class AssetAssignment(models.Model):
         ]
 
 
+class MaintenanceContract(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="maintenance_contracts")
+    organization = models.ForeignKey(
+        Organization, null=True, blank=True, on_delete=models.PROTECT, related_name="maintenance_contracts"
+    )
+    vendor = models.CharField(max_length=160)
+    service = models.CharField(max_length=200)
+    quantity = models.PositiveIntegerField(default=1)
+    period = models.CharField(max_length=120, blank=True)
+    starts_on = models.DateField(null=True, blank=True)
+    ends_on = models.DateField(null=True, blank=True)
+    costs = models.JSONField(default=dict, blank=True)
+    contact = models.CharField(max_length=200, blank=True)
+    note = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+    version = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["company", "ends_on"]),
+            models.Index(fields=["active", "ends_on"]),
+        ]
+
+
 class TicketSequence(models.Model):
     """Database-generated ticket numbers; gaps are intentional and never reused."""
 

@@ -282,39 +282,162 @@
   async function assets() {
     const id = params.get("asset");
     if (id) return assetDetail(id);
-    const result = await call(
-      `/${area}/assets?q=${encodeURIComponent(params.get("q") || "")}&page=${params.get("page") || 1}`,
-    );
+    const filters = new URLSearchParams();
+    for (const key of ["q", "page", "category", "status", "company"]) {
+      const value = params.get(key);
+      if (value) filters.set(key, value);
+    }
+    const result = await call(`/${area}/assets?${filters.toString()}`);
+    const category = params.get("category") || "";
+    const status = params.get("status") || "";
+    const company = params.get("company") || "";
+    const q = params.get("q") || "";
+    const query = new URLSearchParams({ q, category, status, company });
+    const organizations = !portal ? (await call("/admin/organizations?purpose=asset")).data : [];
+    const companies = [...new Set(organizations.map(o => o.company).filter(Boolean))].sort();
+    const pageLink = (page) => {
+      const next = new URLSearchParams(query);
+      if (page > 1) next.set("page", page);
+      return `?${next.toString()}`;
+    };
     main.innerHTML =
       heading(
         portal ? "내 자산" : "자산 현황 · 목록",
         portal
-          ? "지급받은 장비에 문제가 있으면 지원을 요청하세요."
-          : "자산의 현재 배정과 상태를 확인하세요.",
+          ? "지급받은 장비를 확인하고 문제가 있으면 지원을 요청하세요."
+          : "자산의 상세 사양과 배정 상태를 확인하고 관리합니다.",
         !portal && me.roles.includes("asset_manager")
-          ? "<button data-new-asset>＋ 자산 등록</button>"
+          ? "<button class=\"secondary\" data-label-selected disabled>선택 라벨 PDF</button><a class=\"secondary assetExportLink\" href=\"/api/v1/admin/assets/export\">Excel 다운로드</a><button data-new-asset>＋ 자산 등록</button>"
           : "",
       ) +
-      `<form class="toolbar"><input name="q" aria-label="자산 검색" placeholder="관리번호, 모델, 일련번호 검색" value="${esc(params.get("q") || "")}"><button class="secondary">검색</button></form><div class="tablewrap"><table><thead><tr><th>관리번호</th><th>장비 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}"><td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="장비">${esc(a.maker)} ${esc(a.model)}</td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.company)} / ${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label)}</td></tr>`).join("") || '<tr><td colspan="5">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="?${new URLSearchParams({ q: params.get("q") || "", page: result.meta.page - 1 })}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="?${new URLSearchParams({ q: params.get("q") || "", page: result.meta.page + 1 })}">다음</a>` : ""}</div>`;
+      `<form class="toolbar assetFilters" method="get" action="/${area}/assets"><input name="q" aria-label="자산 검색" placeholder="관리번호, 사용자, 모델, 시리얼번호 검색" value="${esc(q)}"><select name="category" aria-label="장비 구분"><option value="">전체 장비</option><option value="PC" ${category === "PC" ? "selected" : ""}>PC</option><option value="모니터" ${category === "모니터" ? "selected" : ""}>모니터</option></select><select name="company" aria-label="법인"><option value="">전체 법인</option>${companies.map(code => `<option value="${esc(code)}" ${company===code?"selected":""}>${esc(code)}</option>`).join("")}</select><select name="status" aria-label="자산 상태"><option value="">전체 상태</option><option value="IN_USE" ${status === "IN_USE" ? "selected" : ""}>사용</option><option value="IN_STOCK" ${status === "IN_STOCK" ? "selected" : ""}>보관</option><option value="REPAIR" ${status === "REPAIR" ? "selected" : ""}>수리</option><option value="LOST" ${status === "LOST" ? "selected" : ""}>분실</option><option value="DISPOSED" ${status === "DISPOSED" ? "selected" : ""}>폐기</option></select><button class="secondary">검색</button><a class="secondary filterReset" href="/${area}/assets">초기화</a></form><div class="tablewrap"><table><thead><tr>${!portal && me.roles.includes("asset_manager") ? '<th><input type="checkbox" data-select-all-assets aria-label="현재 페이지 자산 전체 선택"></th>' : ""}<th>관리번호</th><th>사업부 · 장비</th><th>사양 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}">${!portal && me.roles.includes("asset_manager") ? `<td><input type="checkbox" class="assetSelect" value="${a.id}" aria-label="${esc(a.number)} 선택"></td>` : ""}<td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="사업부 · 장비">${esc(a.company)} · ${esc(a.category)}</td><td data-label="사양 · 모델">${esc(a.maker)} ${esc(a.model)}<div class="muted">${esc(a.serial || "시리얼 미등록")}</div></td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label, a.status)}</td></tr>`).join("") || '<tr><td colspan="${!portal && me.roles.includes("asset_manager") ? 7 : 6}">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="${pageLink(result.meta.page - 1)}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="${pageLink(result.meta.page + 1)}">다음</a>` : ""}</div>`;
   }
   async function assetDetail(id) {
     const a = (await call(`/${area}/assets/${id}`)).data;
+    const meta = a.legacy_data || {};
+    const software = meta.software || {};
+    const deviceRows = [
+      ["관리번호", a.number],
+      ["사업부 · 조직", `${a.company} · ${a.organization}`],
+      ["장비 구분", a.category === "모니터" ? "모니터" : (meta.device_type === "DESKTOP" ? "데스크톱" : "노트북")],
+      ["제조사 · 모델", [a.maker, a.model].filter(Boolean).join(" · ")],
+      ["일련번호", a.serial || "미등록"],
+      ["CPU", meta.cpu || "미등록"],
+      ["비트", meta.bits || "미등록"],
+      ["메모리", meta.ram || "미등록"],
+      ["저장장치", [meta.ssd && `SSD ${meta.ssd}`, meta.hdd && `HDD ${meta.hdd}`].filter(Boolean).join(" · ") || "미등록"],
+      ["그래픽", meta.gpu || "미등록"],
+      ["운영체제", [meta.os, meta.os_edition].filter(Boolean).join(" · ") || "미등록"],
+      ...(a.category === "모니터"
+        ? [["화면 크기", meta.size || "미등록"], ["제조일", meta.manufacture_date || "미등록"]]
+        : [["구입일", meta.purchase_date || "미등록"]]),
+      ["비고", meta.note || "—"],
+    ];
+    const softwareRows = [
+      ["Office", software.office], ["한글", software.hangul], ["SAP", software.sap],
+      ["백신", software.antivirus], ["Docuone", software.docuone],
+      ["OfficeKeeper", software.officekeeper], ["기타", software.other],
+    ];
+    const tickets = a.tickets || [];
+    const history = a.history || [];
+    const historyLabel = {"asset.created":"자산 등록","asset.updated":"자산 정보 수정","asset.assigned":"직원 배정","asset.returned":"자산 반납"};
     main.innerHTML =
-      heading(a.model, a.number, `<a href="/${area}/assets">← 자산 목록</a>`) +
-      `<section class="insightCard"><div class="ownerPanel"><div class="ownerLabel">현재 사용자</div><strong class="ownerName">${esc(a.user)}</strong><div>${esc(a.organization)}</div></div>${[
-        ["관리번호", a.number],
-        ["제조사·모델", a.maker + " " + a.model],
-        ["일련번호", a.serial],
-        ["소유 법인", a.company],
-        ["상태", a.status_label],
-      ]
-        .map(
-          ([k, v]) =>
-            `<div class="kv"><span class="muted">${k}</span><span>${esc(v)}</span></div>`,
-        )
-        .join(
-          "",
-        )}<div class="actions"><button data-request-asset="${a.id}">이 자산으로 지원 요청</button>${!portal && me.roles.includes("asset_manager") ? (a.status === "IN_STOCK" ? `<button class="secondary" data-assign-asset="${a.id}" data-version="${a.version}">직원에게 배정</button>` : `<button class="secondary" data-return-asset="${a.id}" data-version="${a.version}">수거 · 반납</button>`) : ""}</div></section>${!portal ? `<section class="insightCard sectionGap"><h3>관련 티켓</h3>${rows(a.tickets || [])}</section>` : ""}`;
+      `<div class="assetBreadcrumb"><a href="/${area}/assets">${portal ? "내 자산" : "자산 목록"}</a><span>›</span><span>자산 상세</span></div>` +
+      heading(a.number, `${a.company} · ${a.category} · ${a.model}`, `<span class="pill" data-state="${esc(a.status)}">${esc(a.status_label)}</span>`) +
+      `<div class="figmaAssetDetail"><section class="assetPrimary"><section class="assetInfoPanel"><h2 class="sectionTitle">장비 정보</h2><p class="detailPanelDescription">자산 기본 정보와 사양을 확인합니다.</p><div class="assetSpecRows">${deviceRows.map(([k,v]) => `<div class="assetSpecRow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div></section><section class="assetInfoPanel softwareSection"><h2 class="sectionTitle">소프트웨어</h2><p class="detailPanelDescription">자산에 기록된 소프트웨어 정보입니다.</p><div class="assetSoftwareGrid">${softwareRows.map(([k,v]) => `<div class="assetSoftwareRow"><span>${esc(k)}</span><b>${esc(v || "미기재")}</b></div>`).join("")}</div></section></section><aside class="assetAside"><section class="assetOwnerCard"><h2>현재 사용자</h2><div class="assetOwnerBody"><strong class="ownerName">${esc(a.user)}</strong><p class="ownerMeta">${esc(a.organization)}</p><div class="assetActionStack"><button data-request-asset="${a.id}">이 자산으로 지원 요청</button>${!portal && me.roles.includes("asset_manager") ? `<button class="secondary" data-edit-asset="${a.id}">자산 정보 수정</button>${a.status === "IN_STOCK" ? `<button class="secondary" data-assign-asset="${a.id}" data-version="${a.version}">직원에게 배정</button>` : `<button class="secondary" data-return-asset="${a.id}" data-version="${a.version}">수거 · 반납</button>`}` : ""}</div></div></section>${!portal && me.roles.includes("asset_manager") ? `<section class="assetQrCard"><h2>QR 코드</h2><img src="/api/v1/admin/assets/${a.id}/qr" alt="${esc(a.number)} QR 코드"><button class="secondary" data-label-asset="${a.id}">40mm 라벨 PDF</button></section>` : ""}<section class="assetHistoryCard"><h2>최근 변경 이력</h2>${history.length ? history.map(item => `<div class="assetHistoryItem"><b>${esc(historyLabel[item.action] || item.action)}</b><time>${esc(date(item.created_at))}</time></div>`).join("") : '<p class="muted">기록된 변경 이력이 없습니다.</p>'}</section><section class="assetHistoryCard"><h2>관련 티켓</h2>${tickets.length ? tickets.map(t => `<a class="assetTicketLink" href="/admin/tickets?ticket=${encodeURIComponent(t.id)}"><b>${esc(t.number)}</b><span>${esc(t.title)}</span>${pill(t.status_label, t.status)}</a>`).join("") : '<p class="muted">연결된 티켓이 없습니다.</p>'}</section></aside></div><div class="assetDetailFooter"><a class="secondary" href="/${area}/assets">← 자산 목록</a></div>`;
+  }
+  async function assetAnalysis() {
+    const first = await call("/admin/assets?page=1&page_size=100");
+    const assets = [...first.data];
+    for (let page = 2; page <= Math.ceil(first.meta.total / first.meta.page_size); page++) {
+      const next = await call(`/admin/assets?page=${page}&page_size=100`);
+      assets.push(...next.data);
+    }
+    const statusLabels = {IN_USE:"사용", IN_STOCK:"보관", REPAIR:"수리", LOST:"분실", DISPOSED:"폐기"};
+    const statusCounts = Object.fromEntries(Object.keys(statusLabels).map(k => [k, assets.filter(a => a.status===k).length]));
+    const pc = assets.filter(a => a.category==="PC").length;
+    const monitors = assets.filter(a => a.category==="모니터").length;
+    const incomplete = assets.filter(a => (a.category!=="모니터" && !a.maker) || !a.model || !a.serial);
+    const bars = Object.entries(statusLabels).map(([key,label]) => {
+      const count=statusCounts[key]||0, width=assets.length?Math.round(count/assets.length*100):0;
+      return `<div class="analysisBarRow"><span>${label}</span><div class="analysisBarTrack"><i style="width:${width}%"></i></div><b>${count}</b></div>`;
+    }).join("");
+    main.innerHTML = heading("분석 및 점검", "자산 보유 현황과 기준정보 누락 항목을 확인합니다.", '<a class="secondary" href="/admin/assets">자산 목록 보기</a>') +
+      `<div class="cards"><div class="card"><span>전체 자산</span><strong>${assets.length}</strong></div><div class="card"><span>PC</span><strong>${pc}</strong></div><div class="card"><span>모니터</span><strong>${monitors}</strong></div><div class="card"><span>기준정보 점검 필요</span><strong>${incomplete.length}</strong></div></div>
+      <div class="demoOverviewGrid"><section class="insightCard"><h3>상태별 자산</h3>${bars}</section><section class="insightCard"><h3>기준정보 누락</h3><p class="muted">제조사, 모델, 시리얼번호 중 하나라도 비어 있는 자산입니다.</p><div class="analysisMissingList">${incomplete.slice(0,20).map(a => `<div><a href="/admin/assets?asset=${a.id}"><b>${esc(a.number)}</b></a><span>${esc(a.company)} · ${esc(a.model || "모델 미등록")}</span><small>${[a.category!=="모니터"&&!a.maker&&"제조사",!a.model&&"모델",!a.serial&&"시리얼"].filter(Boolean).join(" · ")} 누락</small></div>`).join("") || '<p class="muted">점검이 필요한 자산이 없습니다.</p>'}</div>${incomplete.length>20?'<p class="muted">상위 20개만 표시했습니다. 자산 목록에서 나머지를 확인하세요.</p>':""}</section></div>
+      <section class="insightCard"><h3>상태별 목록</h3><div class="demoTabs">${Object.entries(statusLabels).map(([key,label])=>`<a class="pill" href="/admin/assets?status=${key}">${label} ${statusCounts[key]||0}</a>`).join("")}</div></section>`;
+  }
+  async function maintenance() {
+    const q = params.get("q") || "";
+    const active = params.get("active") || "";
+    const query = new URLSearchParams({q, active});
+    const result = await call(`/admin/maintenance?${query}`);
+    const money = (value) => value === undefined || value === null || value === ""
+      ? "—"
+      : new Intl.NumberFormat("ko-KR").format(Number(value)) + "원";
+    const day = (value) => value
+      ? new Date(value + "T00:00:00").toLocaleDateString("ko-KR")
+      : "—";
+    main.innerHTML = heading(
+      "전산 유지보수",
+      "유지보수 업체, 계약 기간, 연도별 비용과 만료 예정 계약을 관리합니다.",
+      '<button data-new-maintenance>＋ 계약 등록</button>',
+    ) + `<form class="toolbar assetFilters" method="get" action="/admin/maintenance">
+      <input name="q" placeholder="업체, 서비스, 담당자 검색" value="${esc(q)}" aria-label="계약 검색">
+      <select name="active" aria-label="계약 상태"><option value="">전체 상태</option><option value="true" ${active==="true"?"selected":""}>사용 중</option><option value="false" ${active==="false"?"selected":""}>종료</option></select>
+      <button class="secondary">검색</button><a class="secondary filterReset" href="/admin/maintenance">초기화</a>
+      <span class="muted">${result.meta.total}건</span>
+    </form><div class="tablewrap"><table><thead><tr><th>업체 · 서비스</th><th>법인 · 조직</th><th>수량</th><th>계약 기간</th><th>연도별 비용</th><th>종료일</th><th>상태</th><th></th></tr></thead><tbody>${result.data.map(c => {
+      const expiring = c.remaining !== null && c.remaining <= 60 && c.remaining >= 0;
+      const expired = c.remaining !== null && c.remaining < 0;
+      const costs = Object.entries(c.costs || {}).sort(([a],[b]) => a.localeCompare(b)).map(([year,amount]) => `${esc(year)}: ${money(amount)}`).join("<br>") || "—";
+      return `<tr><td data-label="업체 · 서비스"><b>${esc(c.vendor)}</b><div class="muted">${esc(c.service)}</div></td><td data-label="법인 · 조직">${esc(c.company)} · ${esc(c.organization || "공통")}</td><td data-label="수량">${esc(c.quantity)}</td><td data-label="계약 기간">${day(c.starts_on)} ~ ${day(c.ends_on)}</td><td data-label="연도별 비용">${costs}</td><td data-label="종료일">${day(c.ends_on)}<div class="muted">${c.remaining === null ? "" : expired ? `만료 ${Math.abs(c.remaining)}일 경과` : `D-${c.remaining}`}</div></td><td data-label="상태">${pill(!c.active ? "종료" : expired ? "만료" : expiring ? "만료 예정" : "사용 중", !c.active || expired ? "CLOSED" : expiring ? "HIGH" : "IN_PROGRESS")}</td><td><button class="secondary" data-edit-contract="${c.id}">수정</button></td></tr>`;
+    }).join("") || '<tr><td colspan="8"><div class="emptyState">등록된 유지보수 계약이 없습니다.</div></td></tr>'}</tbody></table></div>`;
+  }
+  async function maintenanceEditor(contract) {
+    const orgs = (await call("/admin/organizations?purpose=asset")).data;
+    if (!orgs.length) return toast("계약을 등록할 법인·조직 범위를 먼저 설정해주세요.");
+    const year = new Date().getFullYear();
+    const years = [...new Set([year-1, year, year+1, ...Object.keys(contract?.costs || {}).map(Number)])].sort();
+    const orgValue = contract?.organization_id || orgs[0].id;
+    showDialog(contract ? "유지보수 계약 수정" : "유지보수 계약 등록", `<form id="maintenanceForm">
+      <fieldset class="formSection"><legend>계약 정보</legend><div class="grid">
+        <label>관리 조직<select name="organization_id">${orgs.map(o => `<option value="${o.id}" ${o.id===orgValue?"selected":""}>${esc(o.company)} / ${esc(o.name)}</option>`).join("")}</select></label>
+        <label>업체명 *<input name="vendor" required maxlength="160" value="${esc(contract?.vendor || "")}"></label>
+        <label>서비스명 *<input name="service" required maxlength="200" value="${esc(contract?.service || "")}"></label>
+        <label>수량<input type="number" name="quantity" min="1" max="100000" value="${esc(contract?.quantity || 1)}"></label>
+        <label>계약 주기<input name="period" maxlength="120" placeholder="예: 연간, 월간" value="${esc(contract?.period || "")}"></label>
+        <label>시작일<input type="date" name="starts_on" value="${esc(contract?.starts_on || "")}"></label>
+        <label>종료일<input type="date" name="ends_on" value="${esc(contract?.ends_on || "")}"></label>
+        <label>담당 연락처<input name="contact" maxlength="200" value="${esc(contract?.contact || "")}"></label>
+        <label class="fullRow">비고<textarea name="note" maxlength="5000">${esc(contract?.note || "")}</textarea></label>
+      </div></fieldset>
+      <fieldset class="formSection"><legend>연도별 비용</legend><div class="grid">${years.map(y => `<label>${y}년 비용<input type="number" min="0" step="0.01" name="cost_${y}" value="${esc(contract?.costs?.[y] || "")}" placeholder="원 단위"></label>`).join("")}</div></fieldset>
+      ${contract ? `<label class="checkRow"><input type="checkbox" name="active" ${contract.active?"checked":""}> 계약 사용 중</label>` : ""}
+      <div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>${contract?"변경 저장":"계약 등록"}</button></div>
+    </form>`);
+    const form = document.getElementById("maintenanceForm");
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      submit(form, async () => {
+        const values = Object.fromEntries(new FormData(form));
+        const costs = {};
+        years.forEach(y => { if (values[`cost_${y}`] !== "") costs[String(y)] = values[`cost_${y}`]; });
+        const payload = {
+          organization_id: values.organization_id, vendor: values.vendor, service: values.service,
+          quantity: Number(values.quantity), period: values.period, starts_on: values.starts_on || null,
+          ends_on: values.ends_on || null, costs, contact: values.contact, note: values.note,
+        };
+        if (contract) {
+          payload.expected_version = contract.version;
+          payload.active = form.elements.active.checked;
+          await call(`/admin/maintenance/${contract.id}`, {method:"PATCH", body:payload});
+        } else {
+          await call("/admin/maintenance", {method:"POST", body:payload});
+        }
+        closeDialog(); await maintenance(); toast(contract ? "계약을 수정했습니다." : "계약을 등록했습니다.");
+      });
+    };
   }
   async function people() {
     const [orgs, employees] = await Promise.all([
@@ -502,27 +625,74 @@
       });
     };
   }
-  async function newAsset() {
+  async function newAsset() { return assetEditor(null); }
+  async function assetEditor(asset) {
     const orgs = (await call("/admin/organizations?purpose=asset")).data;
-    if (!orgs.length) {
-      toast("자산을 등록할 법인·조직 범위를 먼저 설정해주세요.");
-      return;
-    }
-    showDialog(
-      "자산 등록",
-      `<form id="assetForm"><div class="grid"><label>관리 조직<select name="organization_id">${orgs.map((o) => `<option value="${o.id}">${esc(o.company)} / ${esc(o.name)}</option>`).join("")}</select></label><label>장비 구분<select name="category"><option>PC</option><option>모니터</option></select></label><label>PC 유형<select name="device_type"><option value="NOTEBOOK">노트북</option><option value="DESKTOP">데스크톱</option></select></label><label>관리번호<input name="number" maxlength="80" placeholder="비워두면 저장 시 자동 채번"></label><label>제조사<input name="maker" maxlength="80"></label><label>모델 *<input name="model" maxlength="160" required></label><label>일련번호<input name="serial" maxlength="160"></label></div><p class="fieldHelp">새 자산은 보관 상태로 등록됩니다. 상세에서 직원에게 배정할 수 있습니다.</p><div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>자산 등록</button></div></form>`,
-    );
+    if (!orgs.length) return toast("자산을 등록할 법인·조직 범위를 먼저 설정해주세요.");
+    const meta = asset?.legacy_data || {}, sw = meta.software || {};
+    const v = (key) => esc(meta[key] || "");
+    const orgValue = asset?.organization_id || orgs[0].id;
+    showDialog(asset ? "자산 정보 수정" : "자산 등록", `<form id="assetForm">
+      <fieldset class="formSection"><legend>기본 정보</legend><div class="grid">
+        <label>관리 조직<select name="organization_id">${orgs.map(o => `<option value="${o.id}" ${o.id === orgValue ? "selected" : ""}>${esc(o.company)} / ${esc(o.name)}</option>`).join("")}</select></label>
+        <label>장비 구분<select name="category"><option value="PC" ${asset?.category === "PC" || !asset ? "selected" : ""}>PC</option><option value="모니터" ${asset?.category === "모니터" ? "selected" : ""}>모니터</option></select></label>
+        <label>PC 유형<select name="device_type"><option value="NOTEBOOK" ${meta.device_type !== "DESKTOP" ? "selected" : ""}>노트북</option><option value="DESKTOP" ${meta.device_type === "DESKTOP" ? "selected" : ""}>데스크톱</option></select></label>
+        <label>관리번호<input name="number" maxlength="80" value="${esc(asset?.number || "")}" ${asset ? "required" : ""} placeholder="비워두면 자동 채번"></label>
+        <label>제조사<input name="maker" maxlength="80" value="${esc(asset?.maker || "")}"></label>
+        <label>모델 *<input name="model" maxlength="160" value="${esc(asset?.model || "")}" required></label>
+        <label>일련번호<input name="serial" maxlength="160" value="${esc(asset?.serial || "")}"></label>
+        ${asset ? `<label>상태<select name="status">${[["IN_USE","사용"],["IN_STOCK","보관"],["REPAIR","수리"],["LOST","분실"],["DISPOSED","폐기"]].map(([key,label]) => `<option value="${key}" ${asset.status === key ? "selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}
+      </div></fieldset>
+      <fieldset class="formSection"><legend>상세 사양</legend><div class="grid">
+        <label>CPU<input name="cpu" maxlength="160" value="${v("cpu")}"></label><label>비트<input name="bits" maxlength="40" value="${v("bits")}"></label><label>RAM<input name="ram" maxlength="80" value="${v("ram")}"></label>
+        <label>SSD<input name="ssd" maxlength="80" value="${v("ssd")}"></label><label>HDD<input name="hdd" maxlength="80" value="${v("hdd")}"></label>
+        <label>그래픽<input name="gpu" maxlength="160" value="${v("gpu")}"></label><label>운영체제<input name="os" maxlength="120" value="${v("os")}"></label>
+        <label>OS 에디션<input name="os_edition" maxlength="120" value="${v("os_edition")}"></label><label>화면 크기<input name="size" maxlength="40" value="${v("size")}"></label>
+        <label>${asset?.category === "모니터" ? "제조일" : "구입일"}<input type="date" name="${asset?.category === "모니터" ? "manufacture_date" : "purchase_date"}" value="${v(asset?.category === "모니터" ? "manufacture_date" : "purchase_date")}"></label><label class="fullRow">비고<textarea name="note" maxlength="2000">${v("note")}</textarea></label>
+      </div></fieldset>
+      <fieldset class="formSection"><legend>소프트웨어</legend><div class="grid">
+        <label>Office<input name="sw_office" maxlength="120" value="${esc(sw.office || "")}"></label><label>한글<input name="sw_hangul" maxlength="120" value="${esc(sw.hangul || "")}"></label>
+        <label>SAP<input name="sw_sap" maxlength="120" value="${esc(sw.sap || "")}"></label><label>백신<input name="sw_antivirus" maxlength="120" value="${esc(sw.antivirus || "")}"></label>
+        <label>Docuone<input name="sw_docuone" maxlength="120" value="${esc(sw.docuone || "")}"></label><label>OfficeKeeper<input name="sw_officekeeper" maxlength="120" value="${esc(sw.officekeeper || "")}"></label>
+        <label class="fullRow">기타<input name="sw_other" maxlength="500" value="${esc(sw.other || "")}"></label>
+      </div></fieldset>
+      <p class="fieldHelp">${asset ? "수정 내용은 변경 이력에 기록됩니다." : "새 자산은 보관 상태로 등록됩니다. 저장 후 직원에게 배정할 수 있습니다."}</p>
+      <div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>${asset ? "변경 저장" : "자산 등록"}</button></div></form>`);
     const form = document.getElementById("assetForm");
-    form.onsubmit = (e) => {
-      e.preventDefault();
+    const dateField = form.querySelector('input[type="date"]');
+    if (dateField && form.elements.category) {
+      form.elements.category.onchange = () => {
+        const isMonitor = form.elements.category.value === "모니터";
+        dateField.name = isMonitor ? "manufacture_date" : "purchase_date";
+        dateField.parentElement.firstChild.textContent = isMonitor ? "제조일" : "구입일";
+      };
+    }
+    form.onsubmit = (event) => {
+      event.preventDefault();
       submit(form, async () => {
-        const payload = Object.fromEntries(new FormData(form));
-        const result = await call("/admin/assets", {
-          method: "POST",
-          body: payload,
-        });
-        closeDialog();
-        location.href = "/admin/assets?asset=" + result.data.id;
+        const values = Object.fromEntries(new FormData(form));
+        const legacy_data = {
+          device_type: values.device_type, cpu: values.cpu, bits: values.bits, ram: values.ram, ssd: values.ssd,
+          hdd: values.hdd, gpu: values.gpu, os: values.os, os_edition: values.os_edition,
+          size: values.size, purchase_date: values.purchase_date, manufacture_date: values.manufacture_date, note: values.note,
+          software: {office: values.sw_office, hangul: values.sw_hangul, sap: values.sw_sap,
+            antivirus: values.sw_antivirus, docuone: values.sw_docuone,
+            officekeeper: values.sw_officekeeper, other: values.sw_other},
+        };
+        Object.keys(legacy_data).forEach(key => { if (legacy_data[key] === "") delete legacy_data[key]; });
+        Object.keys(legacy_data.software).forEach(key => { if (!legacy_data.software[key]) delete legacy_data.software[key]; });
+        const payload = {organization_id: values.organization_id, number: values.number, category: values.category,
+          maker: values.maker, model: values.model, serial: values.serial, legacy_data};
+        if (asset) {
+          payload.expected_version = asset.version;
+          payload.status = values.status;
+          const result = await call(`/admin/assets/${asset.id}`, {method:"PATCH", body:payload});
+          closeDialog(); await assetDetail(result.data.id); toast("자산 정보를 수정했습니다.");
+        } else {
+          payload.device_type = values.device_type;
+          const result = await call("/admin/assets", {method:"POST", body:payload});
+          closeDialog(); location.href = "/admin/assets?asset=" + result.data.id;
+        }
       });
     };
   }
@@ -555,6 +725,12 @@
     try {
       if (button.hasAttribute("data-new-ticket")) await newTicket();
       else if (button.hasAttribute("data-new-asset")) await newAsset();
+      else if (button.hasAttribute("data-new-maintenance")) await maintenanceEditor(null);
+      else if (button.dataset.editContract) {
+        const contract = (await call("/admin/maintenance")).data.find(c => c.id === button.dataset.editContract);
+        if (!contract) throw Error("계약 정보를 찾을 수 없습니다.");
+        await maintenanceEditor(contract);
+      }
       else if (button.dataset.requestAsset)
         await newTicket(button.dataset.requestAsset);
       else if (button.dataset.href) location.href = button.dataset.href;
@@ -570,6 +746,32 @@
         });
         await ticketDetail(currentTicket.id);
         toast("요청을 담당하게 되었습니다.");
+      } else if (button.dataset.labelAsset || button.hasAttribute("data-label-selected")) {
+        const assetIds = button.dataset.labelAsset
+          ? [button.dataset.labelAsset]
+          : [...document.querySelectorAll(".assetSelect:checked")].map(input => input.value);
+        if (!assetIds.length) throw Error("라벨을 출력할 자산을 선택하세요.");
+        const response = await fetch("/api/v1/admin/assets/labels", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": document.querySelector('meta[name="csrf-token"]').content,
+          },
+          body: JSON.stringify({asset_ids: assetIds}),
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          throw Error(result.error?.message || "라벨 PDF를 만들지 못했습니다.");
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url; link.download = "Bumjin_QR_labels.pdf"; link.click();
+        URL.revokeObjectURL(url);
+      } else if (button.dataset.editAsset) {
+        const asset = (await call(`/admin/assets/${button.dataset.editAsset}`)).data;
+        await assetEditor(asset);
       } else if (button.dataset.assignAsset)
         await assignDialog(
           button.dataset.assignAsset,
@@ -590,21 +792,38 @@
       button.disabled = false;
     }
   });
+  document.addEventListener("change", event => {
+    if (event.target.matches("[data-select-all-assets]")) {
+      document.querySelectorAll(".assetSelect").forEach(input => { input.checked = event.target.checked; });
+    }
+    if (event.target.matches(".assetSelect, [data-select-all-assets]")) {
+      const selected = document.querySelectorAll(".assetSelect:checked").length;
+      const action = document.querySelector("[data-label-selected]");
+      if (action) { action.disabled = selected === 0; action.textContent = `선택 라벨 PDF (${selected})`; }
+      const all = document.querySelector("[data-select-all-assets]");
+      if (all) all.checked = selected > 0 && selected === document.querySelectorAll(".assetSelect").length;
+    }
+  });
   async function render() {
     try {
       me = (await call("/auth/me")).data;
       document
         .querySelectorAll(".navItem")
-        .forEach((a) =>
+        .forEach((a) => {
+          const target = new URL(a.href);
+          const category = target.searchParams.get("category");
           a.classList.toggle(
             "active",
-            new URL(a.href).pathname === location.pathname,
-          ),
-        );
+            target.pathname === location.pathname &&
+              (category ? category === params.get("category") : !params.has("category")),
+          );
+        });
       const create = document.querySelector(".sidebarCreate");
       if (!portal && !me.roles.includes("support_agent")) create.hidden = true;
       if (params.get("ticket")) await ticketDetail(params.get("ticket"));
       else if (location.pathname.endsWith("/assets")) await assets();
+      else if (location.pathname.endsWith("/maintenance")) await maintenance();
+      else if (location.pathname.endsWith("/asset-analysis")) await assetAnalysis();
       else if (location.pathname.endsWith("/organizations")) await people();
       else if (location.pathname.endsWith("/settings"))
         main.innerHTML =

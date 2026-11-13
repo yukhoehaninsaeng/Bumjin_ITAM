@@ -3331,3 +3331,421 @@ button:disabled {
     cursor: pointer;
   }
 }
+
+
+/* Figma-aligned shared frame for the integrated ticket and asset workspace */
+:root {
+  --brand: #dd254c;
+  --brandSoft: rgba(221, 37, 76, 0.08);
+  --edge: #e2e4e8;
+  color: #242832;
+  background: #fff;
+}
+body {
+  padding-left: 216px;
+  background: #fff;
+}
+header {
+  position: fixed;
+  inset: 0 0 auto 216px;
+  z-index: 21;
+  min-height: 64px;
+  height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--edge);
+  background: #fff;
+  color: #242832;
+  gap: 16px;
+}
+header .globalBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+header .globalBrand b {
+  color: #242832;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+header .globalBrand > span {
+  width: 1px;
+  height: 20px;
+  background: var(--edge);
+}
+header .globalBrand strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+header .headerMeta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header .headerMeta > span {
+  color: #606773;
+  font-size: 13px;
+}
+header .menuToggle {
+  display: none;
+}
+.appSidebar {
+  top: 64px;
+  width: 216px;
+  padding: 18px 14px 20px;
+  background: #fff;
+  border-right: 1px solid var(--edge);
+}
+.sidebarBrand {
+  display: none;
+}
+.sidebarHeading {
+  font-size: 17px;
+  padding: 0 8px;
+  color: #242832;
+}
+.sidebarCaption {
+  margin: 5px 8px 20px;
+  color: #606773;
+}
+.sidebarCreate {
+  border-radius: 4px;
+  min-height: 38px;
+  margin-bottom: 20px;
+}
+.appSidebar nav {
+  gap: 4px;
+}
+.navItem {
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: #434852;
+  font-size: 13px;
+}
+.navItem.active {
+  background: var(--brandSoft);
+  color: var(--brand);
+  font-weight: 700;
+}
+.navItem:hover {
+  background: var(--brandSoft);
+  color: var(--brand);
+}
+.sidebarFooter {
+  border-color: var(--edge);
+}
+main {
+  max-width: none;
+  margin: 64px auto 0;
+  padding: 26px 30px 40px;
+}
+button {
+  border-radius: 4px;
+  background: var(--brand);
+}
+button:hover {
+  background: #c51f43;
+}
+button.secondary {
+  border-radius: 4px;
+}
+.card,
+.filterPanel,
+.insightCard,
+.tablewrap,
+dialog {
+  border-radius: 5px;
+  border-color: var(--edge);
+}
+th {
+  background: #f6f7f9;
+}
+input,
+select,
+textarea {
+  border-radius: 4px;
+  border-color: var(--edge);
+}
+@media (max-width: 1050px) {
+  body { padding-left: 216px; }
+  .appSidebar { width: 216px; }
+  main { padding-right: 22px; padding-left: 22px; }
+}
+@media (max-width: 800px) {
+  body { padding-left: 0; }
+  header {
+    inset: 0 0 auto;
+    height: auto;
+    min-height: 58px;
+    padding: 8px 14px;
+  }
+  header .menuToggle { display: block; }
+  header .globalBrand b { font-size: 16px; }
+  header .globalBrand strong { font-size: 13px; }
+  header .headerMeta > span { display: none; }
+  .appSidebar {
+    top: 58px;
+    width: min(280px, 85vw);
+    padding-top: 18px;
+  }
+  .sidebarBrand { display: flex; }
+  main { margin-top: 58px; padding: 18px 14px 32px; }
+}
+@media print {
+  body { padding-left: 0; }
+  header, .appSidebar, .navBackdrop { display: none !important; }
+  main { margin: 0; padding: 0; }
+}
+
+
+/* Figma login layout in the integrated application */
+body.loginBody {
+  padding: 0;
+  min-height: 100vh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.loginHeader {
+  min-height: 80px;
+  height: 80px;
+  position: static;
+  inset: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 48px;
+  border-bottom: 1px solid var(--edge);
+}
+.loginBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #242832;
+}
+.loginBrand b { font-size: 20px; letter-spacing: 1px; }
+.loginBrand span { width: 1px; height: 22px; background: var(--edge); }
+.loginBrand strong { font-size: 15px; font-weight: 650; }
+.loginHeader > span { color: #606773; font-size: 13px; }
+.loginFormShell {
+  width: min(400px, calc(100% - 36px));
+  max-width: 400px;
+  margin: auto;
+  padding: 48px 0;
+}
+.loginFormShell h1 {
+  margin: 0;
+  color: #242832;
+  font-size: 24px;
+}
+.loginSubtitle { margin: 8px 0 30px; color: #606773; font-size: 14px; }
+.loginFormShell form { display: grid; gap: 18px; }
+.loginField { display: grid; gap: 8px; }
+.loginField label { color: #424752; font-size: 13px; font-weight: 650; }
+.loginField input { height: 44px; }
+.loginButton {
+  width: 100%;
+  min-height: 44px;
+  margin: 4px 0 0;
+  border-radius: 4px;
+}
+.loginGuide {
+  margin-top: 28px;
+  padding: 16px 18px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: #f7f8fa;
+}
+.loginGuide h2 { margin: 0 0 7px; font-size: 13px; }
+.loginGuide p { margin: 0; color: #606773; font-size: 12px; line-height: 1.7; }
+.loginFooter {
+  min-height: 76px;
+  padding: 14px 48px;
+  border-top: 1px solid var(--edge);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #606773;
+  font-size: 12px;
+}
+.loginFooter strong { color: #424752; font-size: 12px; }
+.loginFooter p { margin: 3px 0 0; color: #7b818b; font-size: 11px; }
+.loginError { color: #b4233d; font-size: 12px; margin: 0; }
+@media (max-width: 600px) {
+  .loginHeader { padding: 0 18px; }
+  .loginHeader > span { font-size: 11px; }
+  .loginFooter { padding: 14px 18px; align-items: flex-start; flex-direction: column; }
+  .loginFormShell { padding: 38px 0; }
+}
+
+
+/* Asset list and detail translated to the Figma page structure */
+.sidebarGroup {
+  padding: 8px 12px 4px;
+  color: #858b95;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sidebarGroupSpaced { margin-top: 12px; }
+.assetFilters {
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: #fff;
+}
+.assetFilters input { flex: 1 1 280px; min-width: 220px; }
+.assetFilters select { width: 150px; }
+.assetFilters .filterReset {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: #48464d;
+  text-decoration: none;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+}
+.assetBreadcrumb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 18px;
+  color: #606773;
+  font-size: 12px;
+}
+.assetBreadcrumb a { color: inherit; text-decoration: none; }
+.figmaAssetDetail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 380px);
+  gap: 28px;
+  align-items: start;
+}
+.assetPrimary { min-width: 0; }
+.assetInfoPanel,
+.assetOwnerCard,
+.assetHistoryCard {
+  background: #fff;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+}
+.assetInfoPanel { padding: 18px 20px; }
+.detailPanelDescription { margin: 4px 0 16px; font-size: 12px; color: #606773; }
+.assetSpecRows { border-top: 1px solid var(--edge); }
+.assetSpecRow {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--edge);
+  font-size: 13px;
+}
+.assetSpecRow span,
+.assetSoftwareRow span { color: #606773; }
+.assetSpecRow b,
+.assetSoftwareRow b { font-weight: 550; overflow-wrap: anywhere; }
+.softwareSection { margin-top: 20px; }
+.assetSoftwareGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.assetSoftwareRow {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--edge);
+  font-size: 12px;
+}
+.assetAside { display: grid; gap: 16px; min-width: 0; }
+.assetOwnerCard h2,
+.assetHistoryCard h2 {
+  margin: 0;
+  padding: 13px 18px;
+  background: #f6f7f9;
+  border-bottom: 1px solid var(--edge);
+  font-size: 14px;
+}
+.assetOwnerBody { padding: 18px; }
+.assetOwnerBody .ownerName { color: #242832; font-size: 22px; }
+.assetOwnerBody .ownerMeta { margin: 4px 0 16px; color: #606773; }
+.assetActionStack { display: grid; gap: 8px; }
+.assetActionStack button { width: 100%; min-height: 38px; }
+.assetHistoryCard { padding-bottom: 10px; }
+.assetHistoryCard > .muted { display: block; padding: 8px 18px; }
+.assetTicketLink {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 10px;
+  align-items: center;
+  padding: 12px 18px;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid #f0f1f3;
+}
+.assetTicketLink > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assetTicketLink .pill { grid-column: 2; justify-self: start; }
+.assetDetailFooter { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--edge); }
+.assetDetailFooter a { display: inline-flex; padding: 9px 12px; border-radius: 4px; text-decoration: none; }
+@media (max-width: 950px) {
+  .figmaAssetDetail { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 18px; }
+  .assetSpecRow { grid-template-columns: 140px minmax(0, 1fr); }
+}
+@media (max-width: 800px) {
+  .figmaAssetDetail { grid-template-columns: minmax(0, 1fr); }
+  .assetFilters select { flex: 1 1 130px; width: auto; }
+  .assetSpecRow { grid-template-columns: 120px minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .assetFilters { padding: 12px; }
+  .assetFilters input { min-width: 100%; }
+  .assetSoftwareGrid { grid-template-columns: 1fr; }
+  .assetSoftwareRow { grid-template-columns: 115px minmax(0, 1fr); }
+}
+
+.assetHistoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #f0f1f3;
+  font-size: 12px;
+}
+.assetHistoryItem time { flex-shrink: 0; color: #7b818b; font-size: 11px; }
+
+.assetQrCard {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: #fff;
+}
+.assetQrCard h2 { justify-self: stretch; margin: 0; font-size: 14px; }
+.assetQrCard img { width: 180px; max-width: 100%; height: auto; }
+.assetQrCard button { width: 100%; }
+
+.assetExportLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  color: #48464d;
+  text-decoration: none;
+}
+
+.navItem.navSubItem { margin-left: 10px; width: calc(100% - 10px); padding-top: 8px; padding-bottom: 8px; font-size: 13px; }
+.analysisBarRow { display: grid; grid-template-columns: 64px minmax(80px,1fr) 32px; gap: 12px; align-items: center; margin: 14px 0; font-size: 13px; }
+.analysisBarTrack { height: 10px; overflow: hidden; border-radius: 8px; background: #f1f2f4; }
+.analysisBarTrack i { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+.analysisMissingList { display: grid; gap: 8px; max-height: 460px; overflow: auto; }
+.analysisMissingList > div { display: grid; grid-template-columns: 130px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--edge); font-size: 13px; }
+.analysisMissingList a { color: var(--brand); }
+.analysisMissingList small { color: #a71c39; }
+@media (max-width: 650px) { .analysisMissingList > div { grid-template-columns: 1fr; gap: 4px; } }

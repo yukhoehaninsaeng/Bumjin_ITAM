@@ -31,6 +31,11 @@ for area, portal in [("admin", False), ("portal", True)]:
     ]
 urlpatterns += [
     path("api/v1/admin/tickets/<uuid:ticket_id>/claim", api.claim),
+    path("api/v1/admin/assets/export", api.asset_export),
+    path("api/v1/admin/maintenance", api.maintenance_contracts),
+    path("api/v1/admin/maintenance/<uuid:contract_id>", api.maintenance_contract_detail),
+    path("api/v1/admin/assets/labels", api.asset_labels),
+    path("api/v1/admin/assets/<uuid:asset_id>/qr", api.asset_qr),
     path("api/v1/admin/assets/<uuid:asset_id>/assign", api.asset_assign),
     path("api/v1/admin/assets/<uuid:asset_id>/return", api.asset_assign, {"returning": True}),
 ]
@@ -38,6 +43,8 @@ for route in [
     "admin",
     "admin/tickets",
     "admin/assets",
+    "admin/asset-analysis",
+    "admin/maintenance",
     "admin/organizations",
     "admin/settings",
     "portal",

@@ -12,9 +12,11 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 from . import policies, serializers, services
 from .models import (
+    Asset,
     Attachment,
     AuditEvent,
     Employee,
+    MaintenanceContract,
     Organization,
     Ticket,
     TicketMessage,
@@ -130,8 +132,31 @@ def asset_json(asset):
         "status_label": asset.get_status_display(),
         "company": asset.company.code,
         "organization": asset.organization.name,
+        "organization_id": str(asset.organization_id),
         "version": asset.version,
         "user": assignment.employee.name if assignment and assignment.employee else "미배정 / 공용",
+    }
+
+
+def maintenance_json(contract):
+    remaining = (contract.ends_on - timezone.localdate()).days if contract.ends_on else None
+    return {
+        "id": str(contract.id),
+        "company": contract.company.code,
+        "organization": contract.organization.name if contract.organization else "",
+        "organization_id": str(contract.organization_id) if contract.organization_id else "",
+        "vendor": contract.vendor,
+        "service": contract.service,
+        "quantity": contract.quantity,
+        "period": contract.period,
+        "starts_on": contract.starts_on.isoformat() if contract.starts_on else "",
+        "ends_on": contract.ends_on.isoformat() if contract.ends_on else "",
+        "remaining": remaining,
+        "costs": contract.costs or {},
+        "contact": contract.contact,
+        "note": contract.note,
+        "active": contract.active,
+        "version": contract.version,
     }
 
 
@@ -312,20 +337,49 @@ def assets(request, portal=False):
     query = request.query_params.get("q", "").strip()[:200]
     if query:
         qs = qs.filter(
-            Q(number__icontains=query) | Q(model__icontains=query) | Q(serial__icontains=query)
-        )
+            Q(number__icontains=query)
+            | Q(maker__icontains=query)
+            | Q(model__icontains=query)
+            | Q(serial__icontains=query)
+            | Q(company__code__icontains=query)
+            | Q(organization__name__icontains=query)
+            | Q(assignments__employee__name__icontains=query)
+        ).distinct()
+    category = request.query_params.get("category", "").strip()
+    status = request.query_params.get("status", "").strip()
+    company = request.query_params.get("company", "").strip()
+    if category in {"PC", "모니터"}:
+        qs = qs.filter(category=category)
+    if status in {"IN_USE", "IN_STOCK", "REPAIR", "LOST", "DISPOSED"}:
+        qs = qs.filter(status=status)
+    if company:
+        qs = qs.filter(company__code=company[:20])
     return paginate(request, qs.order_by("number", "id"), asset_json)
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH"])
 def asset_detail(request, asset_id, portal=False):
-    asset = get_object_or_404(policies.assets_visible(request.user, portal=portal), pk=asset_id)
+    if request.method == "PATCH":
+        if portal:
+            raise PermissionDenied("직원은 자산 정보를 수정할 수 없습니다.")
+        payload = parse(serializers.AssetUpdate, request.data)
+        asset = services.update_asset(request.user, asset_id, payload)
+    else:
+        asset = get_object_or_404(policies.assets_visible(request.user, portal=portal), pk=asset_id)
     result = asset_json(asset)
     if not portal:
         result["legacy_data"] = asset.legacy_data
         result["tickets"] = [
             ticket_json(t) for t in policies.tickets_visible(request.user).filter(assets=asset)
         ]
+        recent = AuditEvent.objects.filter(
+            company=asset.company, action__startswith="asset."
+        ).order_by("-created_at")[:100]
+        result["history"] = [
+            {"action": event.action, "created_at": event.created_at.isoformat(), "data": event.data}
+            for event in recent
+            if (event.data or {}).get("asset_id") == str(asset.id)
+        ][:10]
     return Response({"data": result})
 
 
@@ -340,6 +394,124 @@ def asset_assign(request, asset_id, returning=False):
         returning=returning,
     )
     return Response({"data": asset_json(asset)})
+
+
+@api_view(["GET"])
+def asset_export(request):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("자산 Excel 다운로드 권한이 없습니다.")
+    from io import BytesIO
+    from openpyxl import Workbook
+
+    assets = Asset.objects.filter(
+        policies.company_scope(request.user, "asset_manager")
+    ).select_related("company", "organization").prefetch_related("assignments__employee").order_by("company__code", "number")
+    columns = [
+        "관리번호", "법인", "관리조직", "장비구분", "장비유형", "제조사", "모델", "일련번호",
+        "상태", "사용자", "CPU", "비트", "RAM", "SSD", "HDD", "그래픽", "운영체제", "OS 에디션",
+        "화면크기", "구입일/제조일", "Office", "한글", "SAP", "백신", "Docuone", "OfficeKeeper", "기타SW", "비고",
+    ]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "자산 목록"
+    sheet.append(columns)
+    for asset in assets:
+        meta = asset.legacy_data or {}
+        software = meta.get("software") or {}
+        assignment = asset.assignments.filter(returned_at__isnull=True).select_related("employee").first()
+        sheet.append([
+            asset.number, asset.company.code, asset.organization.name, asset.category,
+            {"NOTEBOOK": "노트북", "DESKTOP": "데스크톱"}.get(meta.get("device_type"), ""),
+            asset.maker, asset.model, asset.serial, asset.get_status_display(),
+            assignment.employee.name if assignment and assignment.employee else "",
+            meta.get("cpu", ""), meta.get("bits", ""), meta.get("ram", ""), meta.get("ssd", ""), meta.get("hdd", ""),
+            meta.get("gpu", ""), meta.get("os", ""), meta.get("os_edition", ""), meta.get("size", ""),
+            meta.get("purchase_date", "") or meta.get("manufacture_date", ""), software.get("office", ""), software.get("hangul", ""),
+            software.get("sap", ""), software.get("antivirus", ""), software.get("docuone", ""),
+            software.get("officekeeper", ""), software.get("other", ""), meta.get("note", ""),
+        ])
+    output = BytesIO()
+    workbook.save(output)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="Bumjin_IT_assets.xlsx"'
+    return response
+
+
+@api_view(["GET"])
+def asset_qr(request, asset_id):
+    asset = get_object_or_404(policies.assets_visible(request.user), pk=asset_id)
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics import renderSVG
+
+    url = request.build_absolute_uri(f"/a/{asset.id}")
+    qr = QrCodeWidget(url, barLevel="H", barBorder=4)
+    x0, y0, x1, y1 = qr.getBounds()
+    drawing = Drawing(240, 240, transform=[240 / (x1 - x0), 0, 0, 240 / (y1 - y0), 0, 0])
+    drawing.add(qr)
+    return HttpResponse(renderSVG.drawToString(drawing), content_type="image/svg+xml")
+
+
+@api_view(["POST"])
+def asset_labels(request):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("라벨 출력 권한이 없습니다.")
+    ids = request.data.get("asset_ids")
+    if not isinstance(ids, list) or not 1 <= len(ids) <= 500:
+        raise ValidationError({"asset_ids": "자산 1~500개를 선택하세요."})
+    if len(set(map(str, ids))) != len(ids):
+        raise ValidationError({"asset_ids": "중복 자산이 포함되어 있습니다."})
+    qs = Asset.objects.filter(
+        policies.company_scope(request.user, "asset_manager"), pk__in=ids
+    ).select_related("company", "organization")
+    assets_by_id = {str(asset.id): asset for asset in qs}
+    if len(assets_by_id) != len(ids):
+        raise NotFound("선택한 자산을 찾을 수 없거나 출력 권한이 없습니다.")
+    ordered = [{"id": str(asset.id), "number": asset.number} for asset in (assets_by_id[str(i)] for i in ids)]
+    from .label_pdf import make_pdf
+
+    root = Path(__file__).resolve().parents[2]
+    logo = root / "public" / "qr-label-logo.svg"
+    try:
+        pdf = make_pdf(ordered, request.build_absolute_uri("/"), logo, request.data)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="Bumjin_QR_labels.pdf"'
+    return response
+
+
+@api_view(["GET", "POST"])
+def maintenance_contracts(request):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("유지보수 관리 권한이 없습니다.")
+    if request.method == "POST":
+        payload = parse(serializers.MaintenanceContractCreate, request.data)
+        contract = services.create_maintenance_contract(request.user, payload)
+        return Response({"data": maintenance_json(contract)}, status=201)
+    qs = MaintenanceContract.objects.filter(
+        policies.company_scope(request.user, "asset_manager")
+    ).select_related("company", "organization").order_by("ends_on", "vendor", "service")
+    query = request.query_params.get("q", "").strip()[:200]
+    if query:
+        qs = qs.filter(Q(vendor__icontains=query) | Q(service__icontains=query) | Q(contact__icontains=query))
+    active = request.query_params.get("active", "")
+    if active in {"true", "false"}:
+        qs = qs.filter(active=(active == "true"))
+    data = [maintenance_json(contract) for contract in qs]
+    return Response({"data": data, "meta": {"total": len(data)}})
+
+
+@api_view(["PATCH"])
+def maintenance_contract_detail(request, contract_id):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("유지보수 관리 권한이 없습니다.")
+    payload = parse(serializers.MaintenanceContractUpdate, request.data)
+    contract = services.update_maintenance_contract(request.user, contract_id, payload)
+    return Response({"data": maintenance_json(contract)})
 
 
 @api_view(["GET"])
