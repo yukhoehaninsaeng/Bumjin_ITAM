@@ -24,6 +24,7 @@ from .models import (
 )
 from .uploads import MAX_FILES, validate_upload
 from .transactions import read_snapshot
+from .ldap_department import sync_state
 
 
 def exception_handler(exc, context):
@@ -587,6 +588,8 @@ def employees(request):
                 "id": str(employee.id),
                 "active": employee.active,
                 "groupware_uid": employee.groupware_uid,
+                "version": employee.version,
+                "ldap_department": sync_state(employee),
                 "company_label": "미확인" if (employee.groupware_data or {}).get("company_unconfirmed") else employee.company.code,
                 "directory_uid": employee.directory_uid,
                 "name": employee.name,
@@ -731,3 +734,31 @@ def download(request, file_id):
     )
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+
+@api_view(["POST"])
+def employee_department(request, employee_id):
+    from uuid import UUID
+    from .ldap_department import save_department, sync_employee, DepartmentSyncError
+    try:
+        org_id = UUID(str(request.data.get("organization_id", "")))
+        version = request.data.get("expected_version")
+        if type(version) is not int or version < 1:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise ValidationError("부서와 사용자 버전을 확인하세요.")
+    # Commit the intended department before LDAP I/O, so failures remain retryable.
+    with transaction.atomic():
+        employee = get_object_or_404(
+            policies.employees_visible(request.user).select_for_update(of=("self",)), pk=employee_id)
+        org = get_object_or_404(policies.organizations_visible(request.user), pk=org_id)
+        if (org.external_data or {}).get("display_only") or (org.external_data or {}).get("retired_placeholder"):
+            raise ValidationError("사용자를 배정할 수 없는 조직입니다.")
+        try:
+            save_department(employee, org, request.user, version)
+        except DepartmentSyncError as error:
+            raise ValidationError(str(error))
+    employee, state = sync_employee(employee.id, request.user)
+    return Response({"data": {"id": str(employee.id), "version": employee.version,
+                             "ldap_department": state}}, status=200)
