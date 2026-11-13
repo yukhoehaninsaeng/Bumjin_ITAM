@@ -783,12 +783,15 @@
       me = (await call("/auth/me")).data;
       document
         .querySelectorAll(".navItem")
-        .forEach((a) =>
+        .forEach((a) => {
+          const target = new URL(a.href);
+          const category = target.searchParams.get("category");
           a.classList.toggle(
             "active",
-            new URL(a.href).pathname === location.pathname,
-          ),
-        );
+            target.pathname === location.pathname &&
+              (category ? category === params.get("category") : !params.has("category")),
+          );
+        });
       const create = document.querySelector(".sidebarCreate");
       if (!portal && !me.roles.includes("support_agent")) create.hidden = true;
       if (params.get("ticket")) await ticketDetail(params.get("ticket"));
