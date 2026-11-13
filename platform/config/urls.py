@@ -43,6 +43,7 @@ for route in [
     "admin",
     "admin/tickets",
     "admin/assets",
+    "admin/asset-analysis",
     "admin/maintenance",
     "admin/organizations",
     "admin/settings",
