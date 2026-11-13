@@ -190,8 +190,8 @@ class MaintenanceContract(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["company", "ends_on"]),
-            models.Index(fields=["active", "ends_on"]),
+            models.Index(fields=["company", "ends_on"], name="maint_company_end"),
+            models.Index(fields=["active", "ends_on"], name="maint_active_end"),
         ]
 
 
@@ -344,3 +344,4 @@ class LoginAttempt(models.Model):
     key = models.CharField(max_length=64, primary_key=True)
     count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField()
+
