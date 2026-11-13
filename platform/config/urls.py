@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/v1/admin/dashboard", api.dashboard),
     path("api/v1/admin/organizations", api.organizations),
     path("api/v1/admin/employees", api.employees),
+    path("api/v1/admin/employees/<uuid:employee_id>/department", api.employee_department),
     path("api/v1/admin/employees/<uuid:employee_id>/assets", api.requester_assets),
     path("api/v1/uploads/drafts", api.draft_create),
     path("api/v1/uploads/drafts/<uuid:draft_id>/files", api.draft_upload),
@@ -52,3 +53,4 @@ for route in [
     "portal/assets",
 ]:
     urlpatterns.append(path(route, views.workspace))
+
