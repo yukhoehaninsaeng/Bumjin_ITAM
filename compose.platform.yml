@@ -1,0 +1,48 @@
+# Opt-in next-generation platform. Does not mount the legacy Excel data directory.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: itam
+      POSTGRES_DB: itam
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:?Set a unique URL-safe PLATFORM_DB_PASSWORD}
+    volumes:
+      - platform_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itam -d itam"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  web:
+    build:
+      context: ./platform
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:1881:8000"
+    environment:
+      DATABASE_URL: postgresql://itam:${PLATFORM_DB_PASSWORD:?Set PLATFORM_DB_PASSWORD}@db:5432/itam
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
+      ITAM_ALLOWED_HOSTS: ${ITAM_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      ITAM_CSRF_ORIGINS: ${ITAM_CSRF_ORIGINS:-}
+      ITAM_TRUST_HTTPS_PROXY: ${ITAM_TRUST_HTTPS_PROXY:-0}
+    volumes:
+      - platform_files:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  platform_db:
+  platform_files:

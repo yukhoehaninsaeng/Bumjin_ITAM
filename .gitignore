@@ -14,3 +14,8 @@ backend/data/*
 dist/
 node_modules/
 .vercel/
+
+# New platform runtime data (source and migrations remain tracked)
+platform/*.sqlite3
+platform/staticfiles/
+platform/private-files/
