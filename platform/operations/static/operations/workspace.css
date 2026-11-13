@@ -3498,3 +3498,86 @@ textarea {
   header, .appSidebar, .navBackdrop { display: none !important; }
   main { margin: 0; padding: 0; }
 }
+
+
+/* Figma login layout in the integrated application */
+body.loginBody {
+  padding: 0;
+  min-height: 100vh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.loginHeader {
+  min-height: 80px;
+  height: 80px;
+  position: static;
+  inset: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 48px;
+  border-bottom: 1px solid var(--edge);
+}
+.loginBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #242832;
+}
+.loginBrand b { font-size: 20px; letter-spacing: 1px; }
+.loginBrand span { width: 1px; height: 22px; background: var(--edge); }
+.loginBrand strong { font-size: 15px; font-weight: 650; }
+.loginHeader > span { color: #606773; font-size: 13px; }
+.loginFormShell {
+  width: min(400px, calc(100% - 36px));
+  max-width: 400px;
+  margin: auto;
+  padding: 48px 0;
+}
+.loginFormShell h1 {
+  margin: 0;
+  color: #242832;
+  font-size: 24px;
+}
+.loginSubtitle { margin: 8px 0 30px; color: #606773; font-size: 14px; }
+.loginFormShell form { display: grid; gap: 18px; }
+.loginField { display: grid; gap: 8px; }
+.loginField label { color: #424752; font-size: 13px; font-weight: 650; }
+.loginField input { height: 44px; }
+.loginButton {
+  width: 100%;
+  min-height: 44px;
+  margin: 4px 0 0;
+  border-radius: 4px;
+}
+.loginGuide {
+  margin-top: 28px;
+  padding: 16px 18px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: #f7f8fa;
+}
+.loginGuide h2 { margin: 0 0 7px; font-size: 13px; }
+.loginGuide p { margin: 0; color: #606773; font-size: 12px; line-height: 1.7; }
+.loginFooter {
+  min-height: 76px;
+  padding: 14px 48px;
+  border-top: 1px solid var(--edge);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #606773;
+  font-size: 12px;
+}
+.loginFooter strong { color: #424752; font-size: 12px; }
+.loginFooter p { margin: 3px 0 0; color: #7b818b; font-size: 11px; }
+.loginError { color: #b4233d; font-size: 12px; margin: 0; }
+@media (max-width: 600px) {
+  .loginHeader { padding: 0 18px; }
+  .loginHeader > span { font-size: 11px; }
+  .loginFooter { padding: 14px 18px; align-items: flex-start; flex-direction: column; }
+  .loginFormShell { padding: 38px 0; }
+}
