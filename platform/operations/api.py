@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 from . import policies, serializers, services
 from .models import (
+    Asset,
     Attachment,
     AuditEvent,
     Employee,
@@ -391,7 +392,7 @@ def asset_labels(request):
     if len(set(map(str, ids))) != len(ids):
         raise ValidationError({"asset_ids": "중복 자산이 포함되어 있습니다."})
     qs = Asset.objects.filter(
-        company_scope(request.user, "asset_manager"), pk__in=ids
+        policies.company_scope(request.user, "asset_manager"), pk__in=ids
     ).select_related("company", "organization")
     assets_by_id = {str(asset.id): asset for asset in qs}
     if len(assets_by_id) != len(ids):
