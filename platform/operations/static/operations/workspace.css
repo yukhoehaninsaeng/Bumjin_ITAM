@@ -3704,3 +3704,14 @@ body.loginBody {
   .assetSoftwareGrid { grid-template-columns: 1fr; }
   .assetSoftwareRow { grid-template-columns: 115px minmax(0, 1fr); }
 }
+
+.assetHistoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #f0f1f3;
+  font-size: 12px;
+}
+.assetHistoryItem time { flex-shrink: 0; color: #7b818b; font-size: 11px; }
