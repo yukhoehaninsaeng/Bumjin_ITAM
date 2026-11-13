@@ -659,6 +659,14 @@
       <p class="fieldHelp">${asset ? "수정 내용은 변경 이력에 기록됩니다." : "새 자산은 보관 상태로 등록됩니다. 저장 후 직원에게 배정할 수 있습니다."}</p>
       <div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>${asset ? "변경 저장" : "자산 등록"}</button></div></form>`);
     const form = document.getElementById("assetForm");
+    const dateField = form.querySelector('input[type="date"]');
+    if (dateField && form.elements.category) {
+      form.elements.category.onchange = () => {
+        const isMonitor = form.elements.category.value === "모니터";
+        dateField.name = isMonitor ? "manufacture_date" : "purchase_date";
+        dateField.parentElement.firstChild.textContent = isMonitor ? "제조일" : "구입일";
+      };
+    }
     form.onsubmit = (event) => {
       event.preventDefault();
       submit(form, async () => {
