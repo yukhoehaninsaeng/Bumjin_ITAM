@@ -341,6 +341,78 @@
       heading(a.number, `${a.company} · ${a.category} · ${a.model}`, `<span class="pill" data-state="${esc(a.status)}">${esc(a.status_label)}</span>`) +
       `<div class="figmaAssetDetail"><section class="assetPrimary"><section class="assetInfoPanel"><h2 class="sectionTitle">장비 정보</h2><p class="detailPanelDescription">자산 기본 정보와 사양을 확인합니다.</p><div class="assetSpecRows">${deviceRows.map(([k,v]) => `<div class="assetSpecRow"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div></section><section class="assetInfoPanel softwareSection"><h2 class="sectionTitle">소프트웨어</h2><p class="detailPanelDescription">자산에 기록된 소프트웨어 정보입니다.</p><div class="assetSoftwareGrid">${softwareRows.map(([k,v]) => `<div class="assetSoftwareRow"><span>${esc(k)}</span><b>${esc(v || "미기재")}</b></div>`).join("")}</div></section></section><aside class="assetAside"><section class="assetOwnerCard"><h2>현재 사용자</h2><div class="assetOwnerBody"><strong class="ownerName">${esc(a.user)}</strong><p class="ownerMeta">${esc(a.organization)}</p><div class="assetActionStack"><button data-request-asset="${a.id}">이 자산으로 지원 요청</button>${!portal && me.roles.includes("asset_manager") ? `<button class="secondary" data-edit-asset="${a.id}">자산 정보 수정</button>${a.status === "IN_STOCK" ? `<button class="secondary" data-assign-asset="${a.id}" data-version="${a.version}">직원에게 배정</button>` : `<button class="secondary" data-return-asset="${a.id}" data-version="${a.version}">수거 · 반납</button>`}` : ""}</div></div></section>${!portal && me.roles.includes("asset_manager") ? `<section class="assetQrCard"><h2>QR 코드</h2><img src="/api/v1/admin/assets/${a.id}/qr" alt="${esc(a.number)} QR 코드"><button class="secondary" data-label-asset="${a.id}">40mm 라벨 PDF</button></section>` : ""}<section class="assetHistoryCard"><h2>최근 변경 이력</h2>${history.length ? history.map(item => `<div class="assetHistoryItem"><b>${esc(historyLabel[item.action] || item.action)}</b><time>${esc(date(item.created_at))}</time></div>`).join("") : '<p class="muted">기록된 변경 이력이 없습니다.</p>'}</section><section class="assetHistoryCard"><h2>관련 티켓</h2>${tickets.length ? tickets.map(t => `<a class="assetTicketLink" href="/admin/tickets?ticket=${encodeURIComponent(t.id)}"><b>${esc(t.number)}</b><span>${esc(t.title)}</span>${pill(t.status_label, t.status)}</a>`).join("") : '<p class="muted">연결된 티켓이 없습니다.</p>'}</section></aside></div><div class="assetDetailFooter"><a class="secondary" href="/${area}/assets">← 자산 목록</a></div>`;
   }
+  async function maintenance() {
+    const q = params.get("q") || "";
+    const active = params.get("active") || "";
+    const query = new URLSearchParams({q, active});
+    const result = await call(`/admin/maintenance?${query}`);
+    const money = (value) => value === undefined || value === null || value === ""
+      ? "—"
+      : new Intl.NumberFormat("ko-KR").format(Number(value)) + "원";
+    const day = (value) => value
+      ? new Date(value + "T00:00:00").toLocaleDateString("ko-KR")
+      : "—";
+    main.innerHTML = heading(
+      "전산 유지보수",
+      "유지보수 업체, 계약 기간, 연도별 비용과 만료 예정 계약을 관리합니다.",
+      '<button data-new-maintenance>＋ 계약 등록</button>',
+    ) + `<form class="toolbar assetFilters" method="get" action="/admin/maintenance">
+      <input name="q" placeholder="업체, 서비스, 담당자 검색" value="${esc(q)}" aria-label="계약 검색">
+      <select name="active" aria-label="계약 상태"><option value="">전체 상태</option><option value="true" ${active==="true"?"selected":""}>사용 중</option><option value="false" ${active==="false"?"selected":""}>종료</option></select>
+      <button class="secondary">검색</button><a class="secondary filterReset" href="/admin/maintenance">초기화</a>
+      <span class="muted">${result.meta.total}건</span>
+    </form><div class="tablewrap"><table><thead><tr><th>업체 · 서비스</th><th>법인 · 조직</th><th>수량</th><th>계약 기간</th><th>연도별 비용</th><th>종료일</th><th>상태</th><th></th></tr></thead><tbody>${result.data.map(c => {
+      const expiring = c.remaining !== null && c.remaining <= 60 && c.remaining >= 0;
+      const expired = c.remaining !== null && c.remaining < 0;
+      const costs = Object.entries(c.costs || {}).sort(([a],[b]) => a.localeCompare(b)).map(([year,amount]) => `${esc(year)}: ${money(amount)}`).join("<br>") || "—";
+      return `<tr><td data-label="업체 · 서비스"><b>${esc(c.vendor)}</b><div class="muted">${esc(c.service)}</div></td><td data-label="법인 · 조직">${esc(c.company)} · ${esc(c.organization || "공통")}</td><td data-label="수량">${esc(c.quantity)}</td><td data-label="계약 기간">${day(c.starts_on)} ~ ${day(c.ends_on)}</td><td data-label="연도별 비용">${costs}</td><td data-label="종료일">${day(c.ends_on)}<div class="muted">${c.remaining === null ? "" : expired ? `만료 ${Math.abs(c.remaining)}일 경과` : `D-${c.remaining}`}</div></td><td data-label="상태">${pill(!c.active ? "종료" : expired ? "만료" : expiring ? "만료 예정" : "사용 중", !c.active || expired ? "CLOSED" : expiring ? "HIGH" : "IN_PROGRESS")}</td><td><button class="secondary" data-edit-contract="${c.id}">수정</button></td></tr>`;
+    }).join("") || '<tr><td colspan="8"><div class="emptyState">등록된 유지보수 계약이 없습니다.</div></td></tr>'}</tbody></table></div>`;
+  }
+  async function maintenanceEditor(contract) {
+    const orgs = (await call("/admin/organizations?purpose=asset")).data;
+    if (!orgs.length) return toast("계약을 등록할 법인·조직 범위를 먼저 설정해주세요.");
+    const year = new Date().getFullYear();
+    const years = [...new Set([year-1, year, year+1, ...Object.keys(contract?.costs || {}).map(Number)])].sort();
+    const orgValue = contract?.organization_id || orgs[0].id;
+    showDialog(contract ? "유지보수 계약 수정" : "유지보수 계약 등록", `<form id="maintenanceForm">
+      <fieldset class="formSection"><legend>계약 정보</legend><div class="grid">
+        <label>관리 조직<select name="organization_id">${orgs.map(o => `<option value="${o.id}" ${o.id===orgValue?"selected":""}>${esc(o.company)} / ${esc(o.name)}</option>`).join("")}</select></label>
+        <label>업체명 *<input name="vendor" required maxlength="160" value="${esc(contract?.vendor || "")}"></label>
+        <label>서비스명 *<input name="service" required maxlength="200" value="${esc(contract?.service || "")}"></label>
+        <label>수량<input type="number" name="quantity" min="1" max="100000" value="${esc(contract?.quantity || 1)}"></label>
+        <label>계약 주기<input name="period" maxlength="120" placeholder="예: 연간, 월간" value="${esc(contract?.period || "")}"></label>
+        <label>시작일<input type="date" name="starts_on" value="${esc(contract?.starts_on || "")}"></label>
+        <label>종료일<input type="date" name="ends_on" value="${esc(contract?.ends_on || "")}"></label>
+        <label>담당 연락처<input name="contact" maxlength="200" value="${esc(contract?.contact || "")}"></label>
+        <label class="fullRow">비고<textarea name="note" maxlength="5000">${esc(contract?.note || "")}</textarea></label>
+      </div></fieldset>
+      <fieldset class="formSection"><legend>연도별 비용</legend><div class="grid">${years.map(y => `<label>${y}년 비용<input type="number" min="0" step="0.01" name="cost_${y}" value="${esc(contract?.costs?.[y] || "")}" placeholder="원 단위"></label>`).join("")}</div></fieldset>
+      ${contract ? `<label class="checkRow"><input type="checkbox" name="active" ${contract.active?"checked":""}> 계약 사용 중</label>` : ""}
+      <div class="formError" role="alert"></div><div class="formActions"><button type="button" class="secondary" data-close>취소</button><button>${contract?"변경 저장":"계약 등록"}</button></div>
+    </form>`);
+    const form = document.getElementById("maintenanceForm");
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      submit(form, async () => {
+        const values = Object.fromEntries(new FormData(form));
+        const costs = {};
+        years.forEach(y => { if (values[`cost_${y}`] !== "") costs[String(y)] = values[`cost_${y}`]; });
+        const payload = {
+          organization_id: values.organization_id, vendor: values.vendor, service: values.service,
+          quantity: Number(values.quantity), period: values.period, starts_on: values.starts_on || null,
+          ends_on: values.ends_on || null, costs, contact: values.contact, note: values.note,
+        };
+        if (contract) {
+          payload.expected_version = contract.version;
+          payload.active = form.elements.active.checked;
+          await call(`/admin/maintenance/${contract.id}`, {method:"PATCH", body:payload});
+        } else {
+          await call("/admin/maintenance", {method:"POST", body:payload});
+        }
+        closeDialog(); await maintenance(); toast(contract ? "계약을 수정했습니다." : "계약을 등록했습니다.");
+      });
+    };
+  }
   async function people() {
     const [orgs, employees] = await Promise.all([
       call("/admin/organizations"),
@@ -619,6 +691,12 @@
     try {
       if (button.hasAttribute("data-new-ticket")) await newTicket();
       else if (button.hasAttribute("data-new-asset")) await newAsset();
+      else if (button.hasAttribute("data-new-maintenance")) await maintenanceEditor(null);
+      else if (button.dataset.editContract) {
+        const contract = (await call("/admin/maintenance")).data.find(c => c.id === button.dataset.editContract);
+        if (!contract) throw Error("계약 정보를 찾을 수 없습니다.");
+        await maintenanceEditor(contract);
+      }
       else if (button.dataset.requestAsset)
         await newTicket(button.dataset.requestAsset);
       else if (button.dataset.href) location.href = button.dataset.href;
@@ -653,7 +731,7 @@
         const link = document.createElement("a");
         link.href = url; link.download = "Bumjin_QR_labels.pdf"; link.click();
         URL.revokeObjectURL(url);
-      } } else if (button.dataset.editAsset) {
+      } else if (button.dataset.editAsset) {
         const asset = (await call(`/admin/assets/${button.dataset.editAsset}`)).data;
         await assetEditor(asset);
       } else if (button.dataset.assignAsset)
@@ -691,6 +769,7 @@
       if (!portal && !me.roles.includes("support_agent")) create.hidden = true;
       if (params.get("ticket")) await ticketDetail(params.get("ticket"));
       else if (location.pathname.endsWith("/assets")) await assets();
+      else if (location.pathname.endsWith("/maintenance")) await maintenance();
       else if (location.pathname.endsWith("/organizations")) await people();
       else if (location.pathname.endsWith("/settings"))
         main.innerHTML =
