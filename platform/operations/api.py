@@ -568,6 +568,17 @@ def employees(request):
         request.query_params.get("purpose"), "organization_manager"
     )
     qs = policies.employees_visible(request.user, role=role).filter(active=True)
+    if request.query_params.get("directory") == "1":
+        def directory_employee(employee):
+            return {
+                "id": str(employee.id),
+                "name": employee.name,
+                "email": employee.email,
+                "organization": employee.organization.name,
+                "organization_id": str(employee.organization_id),
+                "company": employee.company.code,
+            }
+        return paginate(request, qs.select_related("company", "organization").order_by("name", "id"), directory_employee)
     return Response(
         {
             "data": [
