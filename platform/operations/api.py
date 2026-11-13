@@ -587,6 +587,7 @@ def employees(request):
                 "id": str(employee.id),
                 "active": employee.active,
                 "groupware_uid": employee.groupware_uid,
+                "company_label": "미확인" if (employee.groupware_data or {}).get("company_unconfirmed") else employee.company.code,
                 "directory_uid": employee.directory_uid,
                 "name": employee.name,
                 "email": employee.email,
