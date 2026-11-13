@@ -76,7 +76,7 @@ class AssetLegacyData(StrictSerializer):
     os = serializers.CharField(max_length=120, required=False, allow_blank=True)
     os_edition = serializers.CharField(max_length=120, required=False, allow_blank=True)
     size = serializers.CharField(max_length=40, required=False, allow_blank=True)
-    purchase_date = serializers.DateField(required=False, allow_null=True)
+    purchase_date = serializers.CharField(max_length=10, required=False, allow_blank=True)
     note = serializers.CharField(max_length=2000, required=False, allow_blank=True)
     software = AssetSoftwareData(required=False)
 
