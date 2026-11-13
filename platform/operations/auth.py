@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.authentication import SessionAuthentication
 from .models import Employee, LoginAttempt
+from .ldap_department import config
 
 
 class ApiSessionAuthentication(SessionAuthentication):
@@ -29,7 +30,7 @@ class DirectoryBackend(ModelBackend):
             return None
         employee = (
             Employee.objects.filter(
-                directory_source=os.environ.get("LDAP_DIRECTORY_SOURCE", "synology"),
+                directory_source=config("LDAP_DIRECTORY_SOURCE", "synology"),
                 directory_uid=username,
                 active=True,
                 company__active=True,
@@ -39,7 +40,7 @@ class DirectoryBackend(ModelBackend):
             .select_related("user")
             .first()
         )
-        if not employee or not os.environ.get("LDAP_HOST"):
+        if not employee or not config("LDAP_HOST"):
             return None
         import ldap3
         from ldap3.utils.conv import escape_filter_chars
@@ -47,29 +48,29 @@ class DirectoryBackend(ModelBackend):
         connections = []
         try:
             tls = ldap3.Tls(
-                validate=ssl.CERT_REQUIRED, ca_certs_file=os.environ.get("LDAP_CA_FILE") or None
+                validate=ssl.CERT_REQUIRED, ca_certs_file=config("LDAP_CA_FILE") or None
             )
             server = ldap3.Server(
-                os.environ["LDAP_HOST"],
-                port=int(os.environ.get("LDAP_PORT", "636")),
+                config("LDAP_HOST"),
+                port=int(config("LDAP_PORT", "636")),
                 use_ssl=True,
                 tls=tls,
                 connect_timeout=10,
             )
             directory = ldap3.Connection(
                 server,
-                user=os.environ["LDAP_BIND_DN"],
-                password=os.environ["LDAP_BIND_PASSWORD"],
+                user=config("LDAP_BIND_DN"),
+                password=config("LDAP_BIND_PASSWORD"),
                 auto_bind=True,
                 receive_timeout=10,
                 raise_exceptions=True,
             )
             connections.append(directory)
-            attr = os.environ.get("LDAP_ID_ATTRIBUTE", "entryUUID")
+            attr = config("LDAP_ID_ATTRIBUTE", "entryUUID")
             if not attr.replace("-", "").isalnum():
                 return None
             directory.search(
-                os.environ["LDAP_BASE_DN"],
+                config("LDAP_BASE_DN"),
                 f"({attr}={escape_filter_chars(employee.directory_id)})",
                 attributes=["uid", attr],
             )
@@ -120,3 +121,4 @@ def consume_login_attempt(request, username):
             row.count += 1
             row.save(update_fields=["count", "expires_at"])
     return True
+

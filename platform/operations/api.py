@@ -24,6 +24,7 @@ from .models import (
 )
 from .uploads import MAX_FILES, validate_upload
 from .transactions import read_snapshot
+from .ldap_department import sync_state
 
 
 def exception_handler(exc, context):
@@ -541,25 +542,33 @@ def maintenance_contract_detail(request, contract_id):
 
 @api_view(["GET"])
 def organizations(request):
-    return Response(
+    if request.query_params.get("purpose") == "asset":
+        qs = Organization.objects.filter(policies.company_scope(request.user, "asset_manager"))
+    else:
+        qs = policies.organizations_visible(request.user)
+    if request.query_params.get("directory") == "1":
+        imported_companies = qs.filter(external_source="groupware").values_list("company_id", flat=True)
+        people = policies.employees_visible(request.user, role="organization_manager")
+        employment = request.query_params.get("employment", "active")
+        if employment == "retired":
+            people = people.filter(active=False)
+        elif employment != "all":
+            people = people.filter(active=True)
+        qs = qs.filter(
+            Q(external_source="groupware")
+            | ~Q(company_id__in=imported_companies)
+            | Q(pk__in=people.values_list("organization_id", flat=True))
+        )
+    return Response({"data": [
         {
-            "data": [
-                {
-                    "id": str(o.id),
-                    "name": o.name,
-                    "company": o.company.code,
-                    "parent_id": str(o.parent_id) if o.parent_id else None,
-                }
-                for o in (
-                    Organization.objects.filter(
-                        policies.company_scope(request.user, "asset_manager")
-                    ).select_related("company", "parent")
-                    if request.query_params.get("purpose") == "asset"
-                    else policies.organizations_visible(request.user)
-                ).order_by("company__code", "name")
-            ]
+            "id": str(o.id), "name": o.name, "company": o.company.code,
+            "parent_id": str(o.parent_id) if o.parent_id else None,
+            "department_code": o.external_code,
+            "source": o.external_source,
+            "sort_order": (o.external_data or {}).get("source_row", 0),
         }
-    )
+        for o in qs.select_related("company", "parent").order_by("company__code", "name")
+    ]})
 
 
 @api_view(["GET"])
@@ -567,7 +576,30 @@ def employees(request):
     role = {"request": "support_agent", "assignment": "asset_manager"}.get(
         request.query_params.get("purpose"), "organization_manager"
     )
-    qs = policies.employees_visible(request.user, role=role).filter(active=True)
+    qs = policies.employees_visible(request.user, role=role)
+    if request.query_params.get("directory") == "1":
+        employment = request.query_params.get("employment", "active")
+        if employment == "retired":
+            qs = qs.filter(active=False)
+        elif employment != "all":
+            qs = qs.filter(active=True)
+        def directory_employee(employee):
+            return {
+                "id": str(employee.id),
+                "active": employee.active,
+                "groupware_uid": employee.groupware_uid,
+                "version": employee.version,
+                "ldap_department": sync_state(employee),
+                "company_label": "미확인" if (employee.groupware_data or {}).get("company_unconfirmed") else employee.company.code,
+                "directory_uid": employee.directory_uid,
+                "name": employee.name,
+                "email": employee.email,
+                "organization": employee.organization.name,
+                "organization_id": str(employee.organization_id),
+                "company": employee.company.code,
+            }
+        return paginate(request, qs.select_related("company", "organization").order_by("name", "id"), directory_employee)
+    qs = qs.filter(active=True)
     return Response(
         {
             "data": [
@@ -702,3 +734,31 @@ def download(request, file_id):
     )
     response["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+
+@api_view(["POST"])
+def employee_department(request, employee_id):
+    from uuid import UUID
+    from .ldap_department import save_department, sync_employee, DepartmentSyncError
+    try:
+        org_id = UUID(str(request.data.get("organization_id", "")))
+        version = request.data.get("expected_version")
+        if type(version) is not int or version < 1:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise ValidationError("부서와 사용자 버전을 확인하세요.")
+    # Commit the intended department before LDAP I/O, so failures remain retryable.
+    with transaction.atomic():
+        employee = get_object_or_404(
+            policies.employees_visible(request.user).select_for_update(of=("self",)), pk=employee_id)
+        org = get_object_or_404(policies.organizations_visible(request.user), pk=org_id)
+        if (org.external_data or {}).get("display_only") or (org.external_data or {}).get("retired_placeholder"):
+            raise ValidationError("사용자를 배정할 수 없는 조직입니다.")
+        try:
+            save_department(employee, org, request.user, version)
+        except DepartmentSyncError as error:
+            raise ValidationError(str(error))
+    employee, state = sync_employee(employee.id, request.user)
+    return Response({"data": {"id": str(employee.id), "version": employee.version,
+                             "ldap_department": state}}, status=200)
