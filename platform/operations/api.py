@@ -337,8 +337,14 @@ def assets(request, portal=False):
     query = request.query_params.get("q", "").strip()[:200]
     if query:
         qs = qs.filter(
-            Q(number__icontains=query) | Q(model__icontains=query) | Q(serial__icontains=query)
-        )
+            Q(number__icontains=query)
+            | Q(maker__icontains=query)
+            | Q(model__icontains=query)
+            | Q(serial__icontains=query)
+            | Q(company__code__icontains=query)
+            | Q(organization__name__icontains=query)
+            | Q(assignments__employee__name__icontains=query)
+        ).distinct()
     category = request.query_params.get("category", "").strip()
     status = request.query_params.get("status", "").strip()
     company = request.query_params.get("company", "").strip()
