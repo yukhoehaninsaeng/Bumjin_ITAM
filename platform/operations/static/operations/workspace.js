@@ -323,12 +323,14 @@
       ["제조사 · 모델", [a.maker, a.model].filter(Boolean).join(" · ")],
       ["일련번호", a.serial || "미등록"],
       ["CPU", meta.cpu || "미등록"],
+      ["비트", meta.bits || "미등록"],
       ["메모리", meta.ram || "미등록"],
       ["저장장치", [meta.ssd && `SSD ${meta.ssd}`, meta.hdd && `HDD ${meta.hdd}`].filter(Boolean).join(" · ") || "미등록"],
       ["그래픽", meta.gpu || "미등록"],
       ["운영체제", [meta.os, meta.os_edition].filter(Boolean).join(" · ") || "미등록"],
-      ...(a.category === "모니터" ? [["화면 크기", meta.size || "미등록"]] : []),
-      ["구입일", meta.purchase_date || "미등록"],
+      ...(a.category === "모니터"
+        ? [["화면 크기", meta.size || "미등록"], ["제조일", meta.manufacture_date || "미등록"]]
+        : [["구입일", meta.purchase_date || "미등록"]]),
       ["비고", meta.note || "—"],
     ];
     const softwareRows = [
@@ -642,11 +644,11 @@
         ${asset ? `<label>상태<select name="status">${[["IN_USE","사용"],["IN_STOCK","보관"],["REPAIR","수리"],["LOST","분실"],["DISPOSED","폐기"]].map(([key,label]) => `<option value="${key}" ${asset.status === key ? "selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}
       </div></fieldset>
       <fieldset class="formSection"><legend>상세 사양</legend><div class="grid">
-        <label>CPU<input name="cpu" maxlength="160" value="${v("cpu")}"></label><label>RAM<input name="ram" maxlength="80" value="${v("ram")}"></label>
+        <label>CPU<input name="cpu" maxlength="160" value="${v("cpu")}"></label><label>비트<input name="bits" maxlength="40" value="${v("bits")}"></label><label>RAM<input name="ram" maxlength="80" value="${v("ram")}"></label>
         <label>SSD<input name="ssd" maxlength="80" value="${v("ssd")}"></label><label>HDD<input name="hdd" maxlength="80" value="${v("hdd")}"></label>
         <label>그래픽<input name="gpu" maxlength="160" value="${v("gpu")}"></label><label>운영체제<input name="os" maxlength="120" value="${v("os")}"></label>
         <label>OS 에디션<input name="os_edition" maxlength="120" value="${v("os_edition")}"></label><label>화면 크기<input name="size" maxlength="40" value="${v("size")}"></label>
-        <label>구입일<input type="date" name="purchase_date" value="${v("purchase_date")}"></label><label class="fullRow">비고<textarea name="note" maxlength="2000">${v("note")}</textarea></label>
+        <label>${asset?.category === "모니터" ? "제조일" : "구입일"}<input type="date" name="${asset?.category === "모니터" ? "manufacture_date" : "purchase_date"}" value="${v(asset?.category === "모니터" ? "manufacture_date" : "purchase_date")}"></label><label class="fullRow">비고<textarea name="note" maxlength="2000">${v("note")}</textarea></label>
       </div></fieldset>
       <fieldset class="formSection"><legend>소프트웨어</legend><div class="grid">
         <label>Office<input name="sw_office" maxlength="120" value="${esc(sw.office || "")}"></label><label>한글<input name="sw_hangul" maxlength="120" value="${esc(sw.hangul || "")}"></label>
@@ -662,9 +664,9 @@
       submit(form, async () => {
         const values = Object.fromEntries(new FormData(form));
         const legacy_data = {
-          device_type: values.device_type, cpu: values.cpu, ram: values.ram, ssd: values.ssd,
+          device_type: values.device_type, cpu: values.cpu, bits: values.bits, ram: values.ram, ssd: values.ssd,
           hdd: values.hdd, gpu: values.gpu, os: values.os, os_edition: values.os_edition,
-          size: values.size, purchase_date: values.purchase_date, note: values.note,
+          size: values.size, purchase_date: values.purchase_date, manufacture_date: values.manufacture_date, note: values.note,
           software: {office: values.sw_office, hangul: values.sw_hangul, sap: values.sw_sap,
             antivirus: values.sw_antivirus, docuone: values.sw_docuone,
             officekeeper: values.sw_officekeeper, other: values.sw_other},
