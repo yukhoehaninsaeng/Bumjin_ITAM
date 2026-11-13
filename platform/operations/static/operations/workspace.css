@@ -3844,3 +3844,7 @@ body:not(.loginBody) {font-family:"Noto Sans KR",system-ui,sans-serif;color:#242
 @media(max-width:1050px){.directoryLayout{grid-template-columns:280px minmax(0,1fr);gap:16px}}
 @media(max-width:800px){.directoryLayout{grid-template-columns:1fr}.directoryControls{flex-wrap:wrap}.directoryControls>label:first-child{max-width:none;min-width:180px}#directoryTree{max-height:360px;min-height:160px}.directoryTable{min-width:580px}.directoryPeoplePanel .tablewrap{overflow:auto}.directoryTable thead{display:table-header-group}.directoryTable tbody tr{display:table-row}.directoryTable td{display:table-cell}.directoryTable td:before{display:none}}
 @media(prefers-reduced-motion:reduce){.directoryBranch summary:before,.directoryCompanyBranch summary:before{transition:none}}
+
+.directoryControls>label:first-child {flex:0 0 135px;max-width:135px}
+.directoryControls>label:nth-child(2) {flex:1;max-width:560px}
+@media(max-width:800px){.directoryControls>label:first-child{min-width:120px}.directoryControls>label:nth-child(2){max-width:none}.directoryTable{min-width:740px}}
