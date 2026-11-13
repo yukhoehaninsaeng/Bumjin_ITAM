@@ -16,6 +16,7 @@ from .models import (
     Attachment,
     AuditEvent,
     Employee,
+    MaintenanceContract,
     Organization,
     Ticket,
     TicketMessage,
@@ -134,6 +135,28 @@ def asset_json(asset):
         "organization_id": str(asset.organization_id),
         "version": asset.version,
         "user": assignment.employee.name if assignment and assignment.employee else "미배정 / 공용",
+    }
+
+
+def maintenance_json(contract):
+    remaining = (contract.ends_on - timezone.localdate()).days if contract.ends_on else None
+    return {
+        "id": str(contract.id),
+        "company": contract.company.code,
+        "organization": contract.organization.name if contract.organization else "",
+        "organization_id": str(contract.organization_id) if contract.organization_id else "",
+        "vendor": contract.vendor,
+        "service": contract.service,
+        "quantity": contract.quantity,
+        "period": contract.period,
+        "starts_on": contract.starts_on.isoformat() if contract.starts_on else "",
+        "ends_on": contract.ends_on.isoformat() if contract.ends_on else "",
+        "remaining": remaining,
+        "costs": contract.costs or {},
+        "contact": contract.contact,
+        "note": contract.note,
+        "active": contract.active,
+        "version": contract.version,
     }
 
 
@@ -453,6 +476,36 @@ def asset_labels(request):
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = 'attachment; filename="Bumjin_QR_labels.pdf"'
     return response
+
+
+@api_view(["GET", "POST"])
+def maintenance_contracts(request):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("유지보수 관리 권한이 없습니다.")
+    if request.method == "POST":
+        payload = parse(serializers.MaintenanceContractCreate, request.data)
+        contract = services.create_maintenance_contract(request.user, payload)
+        return Response({"data": maintenance_json(contract)}, status=201)
+    qs = MaintenanceContract.objects.filter(
+        policies.company_scope(request.user, "asset_manager")
+    ).select_related("company", "organization").order_by("ends_on", "vendor", "service")
+    query = request.query_params.get("q", "").strip()[:200]
+    if query:
+        qs = qs.filter(Q(vendor__icontains=query) | Q(service__icontains=query) | Q(contact__icontains=query))
+    active = request.query_params.get("active", "")
+    if active in {"true", "false"}:
+        qs = qs.filter(active=(active == "true"))
+    data = [maintenance_json(contract) for contract in qs]
+    return Response({"data": data, "meta": {"total": len(data)}})
+
+
+@api_view(["PATCH"])
+def maintenance_contract_detail(request, contract_id):
+    if not request.user.role_grants.filter(role="asset_manager").exists():
+        raise PermissionDenied("유지보수 관리 권한이 없습니다.")
+    payload = parse(serializers.MaintenanceContractUpdate, request.data)
+    contract = services.update_maintenance_contract(request.user, contract_id, payload)
+    return Response({"data": maintenance_json(contract)})
 
 
 @api_view(["GET"])
