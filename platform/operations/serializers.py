@@ -104,7 +104,7 @@ class AssetUpdate(StrictSerializer):
     serial = serializers.CharField(max_length=160, required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=Asset._meta.get_field("status").choices, required=False)
     legacy_data = AssetLegacyData(required=False)
-\n
+
 class MaintenanceContractCreate(StrictSerializer):
     organization_id = serializers.UUIDField()
     vendor = serializers.CharField(max_length=160)
