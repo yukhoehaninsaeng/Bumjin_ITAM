@@ -117,6 +117,18 @@ def ticket_json(ticket, *, detail=False, portal=False, as_of=None):
     return result
 
 
+def asset_grade(asset):
+    from datetime import date
+    meta = asset.legacy_data or {}
+    raw = meta.get("purchase_date") or meta.get("manufacture_date") or ""
+    try:
+        acquired = date.fromisoformat(str(raw)[:10])
+        years = (date.today() - acquired).days / 365.25
+        return "C" if years >= 5 else "B" if years >= 3 else "A"
+    except (ValueError, TypeError):
+        return meta.get("grade") or "미확인"
+
+
 def asset_json(asset):
     assignment = (
         asset.assignments.filter(returned_at__isnull=True).select_related("employee").first()
@@ -125,6 +137,8 @@ def asset_json(asset):
         "id": str(asset.id),
         "number": asset.number,
         "category": asset.category,
+        "grade": asset_grade(asset),
+        "specification": " · ".join(filter(None, [(asset.legacy_data or {}).get("ram"), (asset.legacy_data or {}).get("ssd")])) if asset.category == "PC" else (asset.legacy_data or {}).get("size", ""),
         "maker": asset.maker,
         "model": asset.model,
         "serial": asset.serial,
@@ -354,7 +368,18 @@ def assets(request, portal=False):
         qs = qs.filter(status=status)
     if company:
         qs = qs.filter(company__code=company[:20])
-    return paginate(request, qs.order_by("number", "id"), asset_json)
+    inspection = request.query_params.get("inspection", "")
+    if inspection == "missing":
+        qs = qs.filter(Q(serial="") | Q(model=""))
+    elif inspection == "aged":
+        qs = qs.filter(pk__in=[a.pk for a in qs if asset_grade(a) == "C"])
+    response = paginate(request, qs.order_by("number", "id"), asset_json)
+    base = policies.assets_visible(request.user, portal=portal)
+    response.data["meta"]["categories"] = {
+        "all": base.count(), "PC": base.filter(category="PC").count(),
+        "모니터": base.filter(category="모니터").count(),
+    }
+    return response
 
 
 @api_view(["GET", "PATCH"])
