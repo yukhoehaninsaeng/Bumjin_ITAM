@@ -541,25 +541,33 @@ def maintenance_contract_detail(request, contract_id):
 
 @api_view(["GET"])
 def organizations(request):
-    return Response(
+    if request.query_params.get("purpose") == "asset":
+        qs = Organization.objects.filter(policies.company_scope(request.user, "asset_manager"))
+    else:
+        qs = policies.organizations_visible(request.user)
+    if request.query_params.get("directory") == "1":
+        imported_companies = qs.filter(external_source="groupware").values_list("company_id", flat=True)
+        people = policies.employees_visible(request.user, role="organization_manager")
+        employment = request.query_params.get("employment", "active")
+        if employment == "retired":
+            people = people.filter(active=False)
+        elif employment != "all":
+            people = people.filter(active=True)
+        qs = qs.filter(
+            Q(external_source="groupware")
+            | ~Q(company_id__in=imported_companies)
+            | Q(pk__in=people.values_list("organization_id", flat=True))
+        )
+    return Response({"data": [
         {
-            "data": [
-                {
-                    "id": str(o.id),
-                    "name": o.name,
-                    "company": o.company.code,
-                    "parent_id": str(o.parent_id) if o.parent_id else None,
-                }
-                for o in (
-                    Organization.objects.filter(
-                        policies.company_scope(request.user, "asset_manager")
-                    ).select_related("company", "parent")
-                    if request.query_params.get("purpose") == "asset"
-                    else policies.organizations_visible(request.user)
-                ).order_by("company__code", "name")
-            ]
+            "id": str(o.id), "name": o.name, "company": o.company.code,
+            "parent_id": str(o.parent_id) if o.parent_id else None,
+            "department_code": o.external_code,
+            "source": o.external_source,
+            "sort_order": (o.external_data or {}).get("source_row", 0),
         }
-    )
+        for o in qs.select_related("company", "parent").order_by("company__code", "name")
+    ]})
 
 
 @api_view(["GET"])
@@ -567,11 +575,19 @@ def employees(request):
     role = {"request": "support_agent", "assignment": "asset_manager"}.get(
         request.query_params.get("purpose"), "organization_manager"
     )
-    qs = policies.employees_visible(request.user, role=role).filter(active=True)
+    qs = policies.employees_visible(request.user, role=role)
     if request.query_params.get("directory") == "1":
+        employment = request.query_params.get("employment", "active")
+        if employment == "retired":
+            qs = qs.filter(active=False)
+        elif employment != "all":
+            qs = qs.filter(active=True)
         def directory_employee(employee):
             return {
                 "id": str(employee.id),
+                "active": employee.active,
+                "groupware_uid": employee.groupware_uid,
+                "directory_uid": employee.directory_uid,
                 "name": employee.name,
                 "email": employee.email,
                 "organization": employee.organization.name,
@@ -579,6 +595,7 @@ def employees(request):
                 "company": employee.company.code,
             }
         return paginate(request, qs.select_related("company", "organization").order_by("name", "id"), directory_employee)
+    qs = qs.filter(active=True)
     return Response(
         {
             "data": [
