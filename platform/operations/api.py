@@ -314,12 +314,27 @@ def assets(request, portal=False):
         qs = qs.filter(
             Q(number__icontains=query) | Q(model__icontains=query) | Q(serial__icontains=query)
         )
+    category = request.query_params.get("category", "").strip()
+    status = request.query_params.get("status", "").strip()
+    company = request.query_params.get("company", "").strip()
+    if category in {"PC", "모니터"}:
+        qs = qs.filter(category=category)
+    if status in {"IN_USE", "IN_STOCK", "REPAIR", "LOST", "DISPOSED"}:
+        qs = qs.filter(status=status)
+    if company:
+        qs = qs.filter(company__code=company[:20])
     return paginate(request, qs.order_by("number", "id"), asset_json)
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH"])
 def asset_detail(request, asset_id, portal=False):
-    asset = get_object_or_404(policies.assets_visible(request.user, portal=portal), pk=asset_id)
+    if request.method == "PATCH":
+        if portal:
+            raise PermissionDenied("직원은 자산 정보를 수정할 수 없습니다.")
+        payload = parse(serializers.AssetUpdate, request.data)
+        asset = services.update_asset(request.user, asset_id, payload)
+    else:
+        asset = get_object_or_404(policies.assets_visible(request.user, portal=portal), pk=asset_id)
     result = asset_json(asset)
     if not portal:
         result["legacy_data"] = asset.legacy_data
