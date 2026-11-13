@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from operations.groupware_sync import load_groupware, summarize, apply_groupware
 
 
@@ -18,7 +20,7 @@ class Command(BaseCommand):
                 raise ValueError('법인 매핑은 부서코드: 법인코드 JSON 객체여야 합니다.')
             plan=load_groupware(options['departments'],options['members'],mapping)
             result=apply_groupware(plan) if options['apply'] else summarize(plan)
-        except (ValueError,OSError) as error:
+        except (ValueError,OSError,ValidationError,IntegrityError) as error:
             raise CommandError(str(error)) from error
         result['mode']='apply' if options['apply'] else 'preview'
         self.stdout.write(json.dumps(result,ensure_ascii=False,indent=2))
