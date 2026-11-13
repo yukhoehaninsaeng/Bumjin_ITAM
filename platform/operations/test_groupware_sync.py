@@ -1,7 +1,7 @@
 from copy import deepcopy
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from .models import Employee, Organization, Company
+from .models import Employee, Organization, Company, Asset, AssetAssignment
 from .groupware_sync import apply_groupware, link_ldap_entries
 
 
@@ -44,9 +44,13 @@ class GroupwareMappingTests(TestCase):
         plan=self.plan();apply_groupware(plan)
         link_ldap_entries([{'uid':'worker','id':'stable-directory-id'}],apply=True)
         employee=Employee.objects.get(groupware_uid='worker');original=employee.organization_id
+        asset=Asset.objects.create(company=employee.company,organization=employee.organization,number='TEST-N-001',model='Test',status='IN_USE')
+        assignment=AssetAssignment.objects.create(asset=asset,employee=employee,organization=employee.organization)
         retired=deepcopy(plan);retired['members'][0].update(active=False,department='')
         apply_groupware(retired);employee.refresh_from_db();self.assertFalse(employee.user.is_active)
         self.assertEqual(employee.organization_id,original)
+        assignment.refresh_from_db();self.assertIsNone(assignment.returned_at)
+        self.assertEqual(assignment.employee_id,employee.id)
         apply_groupware(plan);employee.refresh_from_db();self.assertTrue(employee.user.is_active)
         employee.user.is_active=False;employee.user.save()
         apply_groupware(plan);employee.refresh_from_db();self.assertFalse(employee.user.is_active)
@@ -63,3 +67,8 @@ class GroupwareMappingTests(TestCase):
         result=link_ldap_entries([{'uid':'retired','id':'uuid-1'},{'uid':'unknown','id':'uuid-2'}],apply=True)
         self.assertEqual(result['retired'],1);self.assertEqual(result['unmapped'],1)
         self.assertFalse(get_user_model().objects.exists())
+
+    def test_orphan_login_must_be_manually_mapped_before_sync(self):
+        get_user_model().objects.create_user(username='retired',password='not-a-production-password')
+        with self.assertRaises(ValueError):apply_groupware(self.plan())
+        self.assertFalse(Employee.objects.exists())
