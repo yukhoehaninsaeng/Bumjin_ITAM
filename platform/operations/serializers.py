@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Ticket
+from .models import Asset, Ticket
 
 
 class StrictSerializer(serializers.Serializer):
@@ -56,6 +56,31 @@ class TicketMetadata(Claim):
     due_at = serializers.DateTimeField(required=False, allow_null=True)
 
 
+class AssetSoftwareData(StrictSerializer):
+    office = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    hangul = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    sap = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    antivirus = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    docuone = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    officekeeper = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    other = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class AssetLegacyData(StrictSerializer):
+    device_type = serializers.ChoiceField(choices=["NOTEBOOK", "DESKTOP"], required=False)
+    cpu = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    ram = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    ssd = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    hdd = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    gpu = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    os = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    os_edition = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    size = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    purchase_date = serializers.DateField(required=False, allow_null=True)
+    note = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+    software = AssetSoftwareData(required=False)
+
+
 class AssetCreate(StrictSerializer):
     organization_id = serializers.UUIDField()
     number = serializers.CharField(max_length=80, required=False, allow_blank=True)
@@ -64,3 +89,16 @@ class AssetCreate(StrictSerializer):
     model = serializers.CharField(max_length=160)
     maker = serializers.CharField(max_length=80, required=False, allow_blank=True, default="")
     serial = serializers.CharField(max_length=160, required=False, allow_blank=True, default="")
+    legacy_data = AssetLegacyData(required=False, default=dict)
+
+
+class AssetUpdate(StrictSerializer):
+    expected_version = serializers.IntegerField(min_value=1)
+    organization_id = serializers.UUIDField(required=False)
+    number = serializers.CharField(max_length=80, required=False, allow_blank=False)
+    category = serializers.ChoiceField(choices=["PC", "모니터"], required=False)
+    maker = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    model = serializers.CharField(max_length=160, required=False)
+    serial = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Asset._meta.get_field("status").choices, required=False)
+    legacy_data = AssetLegacyData(required=False)
