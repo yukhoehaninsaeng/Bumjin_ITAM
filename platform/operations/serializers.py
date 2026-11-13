@@ -102,3 +102,37 @@ class AssetUpdate(StrictSerializer):
     serial = serializers.CharField(max_length=160, required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=Asset._meta.get_field("status").choices, required=False)
     legacy_data = AssetLegacyData(required=False)
+\n
+class MaintenanceContractCreate(StrictSerializer):
+    organization_id = serializers.UUIDField()
+    vendor = serializers.CharField(max_length=160)
+    service = serializers.CharField(max_length=200)
+    quantity = serializers.IntegerField(min_value=1, max_value=100000, default=1)
+    period = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+    starts_on = serializers.DateField(required=False, allow_null=True)
+    ends_on = serializers.DateField(required=False, allow_null=True)
+    costs = serializers.DictField(
+        child=serializers.DecimalField(max_digits=14, decimal_places=2, min_value=0),
+        required=False,
+        default=dict,
+    )
+    contact = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    note = serializers.CharField(max_length=5000, required=False, allow_blank=True, default="")
+
+
+class MaintenanceContractUpdate(StrictSerializer):
+    expected_version = serializers.IntegerField(min_value=1)
+    organization_id = serializers.UUIDField(required=False)
+    vendor = serializers.CharField(max_length=160, required=False)
+    service = serializers.CharField(max_length=200, required=False)
+    quantity = serializers.IntegerField(min_value=1, max_value=100000, required=False)
+    period = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    starts_on = serializers.DateField(required=False, allow_null=True)
+    ends_on = serializers.DateField(required=False, allow_null=True)
+    costs = serializers.DictField(
+        child=serializers.DecimalField(max_digits=14, decimal_places=2, min_value=0),
+        required=False,
+    )
+    contact = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    note = serializers.CharField(max_length=5000, required=False, allow_blank=True)
+    active = serializers.BooleanField(required=False)
