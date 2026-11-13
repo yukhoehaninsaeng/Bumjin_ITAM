@@ -157,6 +157,8 @@ def apply_groupware(plan):
         old_data=employee.groupware_data if employee else {}
         if person['active']:
             org=mapped[person['department']];company=org.company
+            if employee and old_data.get('manual_department'):
+                org=employee.organization;company=employee.company
         elif employee:
             org=employee.organization;company=employee.company
         else:
@@ -167,6 +169,8 @@ def apply_groupware(plan):
         data={'source':'groupware','department_code':person['department'],'source_row':person['row'],
               'member_checksum':plan['member_hash'],'employment_status':'active' if person['active'] else 'retired',
               'job':person['job'],'company_unconfirmed':bool(not person['active'] and (new or old_data.get('company_unconfirmed'))),'disabled_by_groupware':bool(old_data.get('disabled_by_groupware'))}
+        for key in ('manual_department', 'ldap_department'):
+            if key in old_data:data[key]=old_data[key]
         user=employee.user if employee.user_id else None
         if not person['active'] and user:
             if user.is_active:
