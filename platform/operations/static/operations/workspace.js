@@ -283,15 +283,18 @@
     const id = params.get("asset");
     if (id) return assetDetail(id);
     const filters = new URLSearchParams();
-    for (const key of ["q", "page", "category", "status"]) {
+    for (const key of ["q", "page", "category", "status", "company"]) {
       const value = params.get(key);
       if (value) filters.set(key, value);
     }
     const result = await call(`/${area}/assets?${filters.toString()}`);
     const category = params.get("category") || "";
     const status = params.get("status") || "";
+    const company = params.get("company") || "";
     const q = params.get("q") || "";
-    const query = new URLSearchParams({ q, category, status });
+    const query = new URLSearchParams({ q, category, status, company });
+    const organizations = !portal ? (await call("/admin/organizations?purpose=asset")).data : [];
+    const companies = [...new Set(organizations.map(o => o.company).filter(Boolean))].sort();
     const pageLink = (page) => {
       const next = new URLSearchParams(query);
       if (page > 1) next.set("page", page);
@@ -307,7 +310,7 @@
           ? "<a class=\"secondary assetExportLink\" href=\"/api/v1/admin/assets/export\">Excel 다운로드</a><button data-new-asset>＋ 자산 등록</button>"
           : "",
       ) +
-      `<form class="toolbar assetFilters" method="get" action="/${area}/assets"><input name="q" aria-label="자산 검색" placeholder="관리번호, 모델, 시리얼번호 검색" value="${esc(q)}"><select name="category" aria-label="장비 구분"><option value="">전체 장비</option><option value="PC" ${category === "PC" ? "selected" : ""}>PC</option><option value="모니터" ${category === "모니터" ? "selected" : ""}>모니터</option></select><select name="status" aria-label="자산 상태"><option value="">전체 상태</option><option value="IN_USE" ${status === "IN_USE" ? "selected" : ""}>사용</option><option value="IN_STOCK" ${status === "IN_STOCK" ? "selected" : ""}>보관</option><option value="REPAIR" ${status === "REPAIR" ? "selected" : ""}>수리</option><option value="LOST" ${status === "LOST" ? "selected" : ""}>분실</option><option value="DISPOSED" ${status === "DISPOSED" ? "selected" : ""}>폐기</option></select><button class="secondary">검색</button><a class="secondary filterReset" href="/${area}/assets">초기화</a></form><div class="tablewrap"><table><thead><tr><th>관리번호</th><th>사업부 · 장비</th><th>사양 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}"><td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="사업부 · 장비">${esc(a.company)} · ${esc(a.category)}</td><td data-label="사양 · 모델">${esc(a.maker)} ${esc(a.model)}<div class="muted">${esc(a.serial || "시리얼 미등록")}</div></td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label, a.status)}</td></tr>`).join("") || '<tr><td colspan="6">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="${pageLink(result.meta.page - 1)}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="${pageLink(result.meta.page + 1)}">다음</a>` : ""}</div>`;
+      `<form class="toolbar assetFilters" method="get" action="/${area}/assets"><input name="q" aria-label="자산 검색" placeholder="관리번호, 사용자, 모델, 시리얼번호 검색" value="${esc(q)}"><select name="category" aria-label="장비 구분"><option value="">전체 장비</option><option value="PC" ${category === "PC" ? "selected" : ""}>PC</option><option value="모니터" ${category === "모니터" ? "selected" : ""}>모니터</option></select><select name="company" aria-label="법인"><option value="">전체 법인</option>${companies.map(code => `<option value="${esc(code)}" ${company===code?"selected":""}>${esc(code)}</option>`).join("")}</select><select name="status" aria-label="자산 상태"><option value="">전체 상태</option><option value="IN_USE" ${status === "IN_USE" ? "selected" : ""}>사용</option><option value="IN_STOCK" ${status === "IN_STOCK" ? "selected" : ""}>보관</option><option value="REPAIR" ${status === "REPAIR" ? "selected" : ""}>수리</option><option value="LOST" ${status === "LOST" ? "selected" : ""}>분실</option><option value="DISPOSED" ${status === "DISPOSED" ? "selected" : ""}>폐기</option></select><button class="secondary">검색</button><a class="secondary filterReset" href="/${area}/assets">초기화</a></form><div class="tablewrap"><table><thead><tr><th>관리번호</th><th>사업부 · 장비</th><th>사양 · 모델</th><th>사용자</th><th>소속</th><th>상태</th></tr></thead><tbody>${result.data.map((a) => `<tr data-id="${a.id}"><td data-label="관리번호"><a href="?asset=${a.id}"><b>${esc(a.number)}</b></a></td><td data-label="사업부 · 장비">${esc(a.company)} · ${esc(a.category)}</td><td data-label="사양 · 모델">${esc(a.maker)} ${esc(a.model)}<div class="muted">${esc(a.serial || "시리얼 미등록")}</div></td><td data-label="사용자">${esc(a.user)}</td><td data-label="소속">${esc(a.organization)}</td><td data-label="상태">${pill(a.status_label, a.status)}</td></tr>`).join("") || '<tr><td colspan="6">표시할 자산이 없습니다.</td></tr>'}</tbody></table></div><p class="muted">${result.meta.total}건 · 권한 범위 내 자산</p><div class="page">${result.meta.page > 1 ? `<a href="${pageLink(result.meta.page - 1)}">이전</a>` : ""}${result.meta.page * result.meta.page_size < result.meta.total ? `<a href="${pageLink(result.meta.page + 1)}">다음</a>` : ""}</div>`;
   }
   async function assetDetail(id) {
     const a = (await call(`/${area}/assets/${id}`)).data;
@@ -352,14 +355,14 @@
     const statusCounts = Object.fromEntries(Object.keys(statusLabels).map(k => [k, assets.filter(a => a.status===k).length]));
     const pc = assets.filter(a => a.category==="PC").length;
     const monitors = assets.filter(a => a.category==="모니터").length;
-    const incomplete = assets.filter(a => !a.maker || !a.model || !a.serial);
+    const incomplete = assets.filter(a => (a.category!=="모니터" && !a.maker) || !a.model || !a.serial);
     const bars = Object.entries(statusLabels).map(([key,label]) => {
       const count=statusCounts[key]||0, width=assets.length?Math.round(count/assets.length*100):0;
       return `<div class="analysisBarRow"><span>${label}</span><div class="analysisBarTrack"><i style="width:${width}%"></i></div><b>${count}</b></div>`;
     }).join("");
     main.innerHTML = heading("분석 및 점검", "자산 보유 현황과 기준정보 누락 항목을 확인합니다.", '<a class="secondary" href="/admin/assets">자산 목록 보기</a>') +
       `<div class="cards"><div class="card"><span>전체 자산</span><strong>${assets.length}</strong></div><div class="card"><span>PC</span><strong>${pc}</strong></div><div class="card"><span>모니터</span><strong>${monitors}</strong></div><div class="card"><span>기준정보 점검 필요</span><strong>${incomplete.length}</strong></div></div>
-      <div class="demoOverviewGrid"><section class="insightCard"><h3>상태별 자산</h3>${bars}</section><section class="insightCard"><h3>기준정보 누락</h3><p class="muted">제조사, 모델, 시리얼번호 중 하나라도 비어 있는 자산입니다.</p><div class="analysisMissingList">${incomplete.slice(0,20).map(a => `<div><a href="/admin/assets?asset=${a.id}"><b>${esc(a.number)}</b></a><span>${esc(a.company)} · ${esc(a.model || "모델 미등록")}</span><small>${[!a.maker&&"제조사",!a.model&&"모델",!a.serial&&"시리얼"].filter(Boolean).join(" · ")} 누락</small></div>`).join("") || '<p class="muted">점검이 필요한 자산이 없습니다.</p>'}</div>${incomplete.length>20?'<p class="muted">상위 20개만 표시했습니다. 자산 목록에서 나머지를 확인하세요.</p>':""}</section></div>
+      <div class="demoOverviewGrid"><section class="insightCard"><h3>상태별 자산</h3>${bars}</section><section class="insightCard"><h3>기준정보 누락</h3><p class="muted">제조사, 모델, 시리얼번호 중 하나라도 비어 있는 자산입니다.</p><div class="analysisMissingList">${incomplete.slice(0,20).map(a => `<div><a href="/admin/assets?asset=${a.id}"><b>${esc(a.number)}</b></a><span>${esc(a.company)} · ${esc(a.model || "모델 미등록")}</span><small>${[a.category!=="모니터"&&!a.maker&&"제조사",!a.model&&"모델",!a.serial&&"시리얼"].filter(Boolean).join(" · ")} 누락</small></div>`).join("") || '<p class="muted">점검이 필요한 자산이 없습니다.</p>'}</div>${incomplete.length>20?'<p class="muted">상위 20개만 표시했습니다. 자산 목록에서 나머지를 확인하세요.</p>':""}</section></div>
       <section class="insightCard"><h3>상태별 목록</h3><div class="demoTabs">${Object.entries(statusLabels).map(([key,label])=>`<a class="pill" href="/admin/assets?status=${key}">${label} ${statusCounts[key]||0}</a>`).join("")}</div></section>`;
   }
   async function maintenance() {
