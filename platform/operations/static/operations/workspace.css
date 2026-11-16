@@ -3866,3 +3866,62 @@ body:not(.loginBody) {font-family:"Noto Sans KR",system-ui,sans-serif;color:#242
 .settingsAudit { grid-template-columns:minmax(140px,1fr) minmax(140px,1fr); font-size:13px; }
 .settingsAudit small { grid-column:1/-1; }
 @media(max-width:650px) { .settingsPanel { padding:16px 12px; } .settingsPanel .grid,.settingsAudit { grid-template-columns:minmax(0,1fr); } .settingsTabs button { flex:1 1 auto; } .settingsPanel input,.settingsPanel select { font-size:16px; } }
+
+/* Keep branding and selection controls independent of text-input sizing. */
+.workspaceHeader .globalBrand { min-width: 0; }
+.workspaceHeader .globalBrand b,
+.workspaceHeader .globalBrand strong,
+.sidebarBrand .brandWord {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+.workspaceHeader .globalBrand > span { flex: 0 0 1px; }
+.assetSelectAll {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.assetSelectAll > input[type="checkbox"],
+.figmaAssetTable input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--brand, #dd254c);
+  vertical-align: middle;
+}
+.assetListTools { flex-wrap: wrap; gap: 10px 16px; }
+.assetListTools > div { min-width: 0; flex-wrap: wrap; gap: 10px 14px; }
+@media screen and (max-width: 800px) {
+  .workspaceHeader { padding: 0 12px; gap: 8px; flex-wrap: nowrap; }
+  .workspaceHeader .menuToggle { flex: 0 0 44px; padding: 8px; }
+  .workspaceHeader .globalBrand { flex: 1 1 auto; gap: 8px; }
+  .workspaceHeader .globalBrand b { font-size: 17px; }
+  .workspaceHeader .globalBrand strong { font-size: 12px; }
+  .workspaceHeader .headerMeta { flex: 0 0 auto; margin-left: 0; }
+  .workspaceHeader .headerMeta > span { display: none; }
+  .workspaceHeader .headerMeta button { padding: 8px; font-size: 12px; }
+  .assetListTools > div { width: 100%; }
+  .assetSelectAll { min-height: 44px; }
+}
+@media screen and (max-width: 380px) {
+  .workspaceHeader .globalBrand strong,
+  .workspaceHeader .globalBrand > span { display: none; }
+}
