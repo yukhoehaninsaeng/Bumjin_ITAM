@@ -8,6 +8,7 @@ class Command(BaseCommand):
     help='Preview/apply VPN start/expiry membership and send queued access notices. LDAP writes require both --apply and configured write switch.'
     def add_arguments(self,parser):
         parser.add_argument('--apply',action='store_true')
+        parser.add_argument('--mail-only',action='store_true',help='Send access/recovery notifications without applying VPN groups.')
         parser.add_argument('--watch',action='store_true')
         parser.add_argument('--interval',type=int,default=300)
     def handle(self,*args,**options):
@@ -15,8 +16,8 @@ class Command(BaseCommand):
         try:
             while True:
                 close_old_connections()
-                result={'leases':process_leases(options['apply'])}
-                if options['apply']:result['mail']=notify()
+                result={} if options['mail_only'] else {'leases':process_leases(options['apply'])}
+                if options['apply'] or options['mail_only']:result['mail']=notify()
                 self.stdout.write(json.dumps(result,ensure_ascii=False))
                 if not options['watch']:break
                 time.sleep(options['interval'])
