@@ -395,21 +395,21 @@ a {
     overflow-wrap: anywhere;
     line-height: 1.6;
   }
-  .tablewrap {
+  .ticketTable {
     overflow: visible;
     border: 0;
     background: transparent;
   }
-  table,
-  tbody {
+  .ticketTable table,
+  .ticketTable tbody {
     display: block;
     width: 100%;
     white-space: normal;
   }
-  thead {
+  .ticketTable thead {
     display: none;
   }
-  tbody tr[data-id] {
+  .ticketTable tbody tr[data-id] {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 12px;
@@ -419,25 +419,25 @@ a {
     padding: 12px;
     margin-bottom: 10px;
   }
-  tbody td {
+  .ticketTable tbody td {
     display: block;
     min-width: 0;
     padding: 8px 0;
     border: 0;
     overflow-wrap: anywhere;
   }
-  tbody td::before {
+  .ticketTable tbody td::before {
     content: attr(data-label);
     display: block;
     color: #66788a;
     font-size: 11px;
     margin-bottom: 5px;
   }
-  tbody td:first-child {
+  .ticketTable tbody td:first-child {
     grid-column: 1/-1;
     font-size: 17px;
   }
-  tbody td[colspan] {
+  .ticketTable tbody td[colspan] {
     display: block;
     padding: 18px;
     background: white;
@@ -799,16 +799,16 @@ input::placeholder {
   .filterPanel > .toolbar select {
     flex-basis: 120px;
   }
-  tbody tr[data-id] {
+  .ticketTable tbody tr[data-id] {
     border-left: 4px solid #cbdcf7;
     box-shadow: 0 2px 8px #18395506;
   }
-  tbody td:first-child {
+  .ticketTable tbody td:first-child {
     padding-bottom: 12px;
     margin-bottom: 4px;
     border-bottom: 1px solid #e7edf5;
   }
-  tbody td:first-child b {
+  .ticketTable tbody td:first-child b {
     font-size: 18px;
   }
 }
@@ -1260,7 +1260,7 @@ textarea {
   .filterPanel {
     padding: 14px;
   }
-  tbody tr[data-id] {
+  .ticketTable tbody tr[data-id] {
     border-left-color: rgba(201, 35, 40, 0.25);
   }
 }
