@@ -1,7 +1,9 @@
 from django.urls import path
-from operations import api, views, admin_settings, directory_api
+from operations import api, views, admin_settings, directory_api, password_recovery
 
 urlpatterns = [
+    path("password-recovery", password_recovery.page),
+    path("password-recovery/submit", password_recovery.submit),
     path("api/v1/admin/directory/accounts", directory_api.accounts),
     path("api/v1/admin/directory/leases", directory_api.leases),
     path("api/v1/admin/directory/leases/<uuid:lease_id>/<str:action>", directory_api.lease_action),
@@ -67,6 +69,7 @@ for route in [
     "portal/account",
 ]:
     urlpatterns.append(path(route, views.workspace))
+
 
 
 
