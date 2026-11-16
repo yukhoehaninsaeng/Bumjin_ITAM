@@ -142,7 +142,7 @@ def process_leases(apply=False):
 
 def notify(limit=50):
     from .ticket_mail import smtp,enabled as mail_enabled,address
-    from django.core.mail import EmailMessage
+    from django.core.mail import EmailMessage,EmailMultiAlternatives
     if not mail_enabled():return {'disabled':True}
     report={'sent':0,'failed':0,'skipped':0}
     ids=list(AccessNotice.objects.filter(state='pending',available_at__lte=timezone.now()).values_list('pk',flat=True)[:limit])
@@ -157,15 +157,27 @@ def notify(limit=50):
                 item.state='skipped';report['skipped']+=1
             else:
                 from .ticket_mail import config as mail_config
-                subject={'vpn_updated':'VPN 사용 권한 안내','vpn_expiry':'VPN 사용 기간 만료 예정','password_reset':'NAS 계정 비밀번호 초기화 알림','password_changed':'NAS 계정 비밀번호 변경 알림'}[item.kind]
+                subject={'vpn_updated':'VPN 사용 권한 안내','vpn_expiry':'VPN 사용 기간 만료 예정','password_reset':'NAS 계정 비밀번호 초기화 알림','password_changed':'NAS 계정 비밀번호 변경 알림','password_recovery':'NAS 비밀번호 재설정 안내'}[item.kind]
                 text=f'{item.employee.name}님의 {subject}입니다.\n계정: {item.employee.directory_uid}\n'
                 if item.kind.startswith('vpn_'):text+='\n'.join(k+': '+str(v) for k,v in item.payload.items())
+                elif item.kind=='password_recovery':
+                    from .password_recovery import delivery
+                    try:link=delivery(item)
+                    except Exception:link=None
+                    if not link:
+                        item.state='skipped';item.payload.pop('encrypted_token',None);item.save();report['skipped']+=1;continue
+                    text+='아래 일회용 링크에서 새 비밀번호를 설정하세요. 링크는 요청 후 30분 동안 유효합니다.\n'+link+'\n본인이 요청하지 않았다면 이 메일을 무시하세요.'
                 else:text+='비밀번호 변경이 완료되었습니다. 본인이 요청하지 않았다면 IT 관리자에게 문의하세요. 비밀번호는 메일로 전송하지 않습니다.'
                 item.attempts+=1
                 try:
                     with smtp() as conn:
-                        if EmailMessage(subject,text,mail_config('FROM_EMAIL'),[target],connection=conn,headers={'Auto-Submitted':'auto-generated'}).send()!=1:raise OSError()
+                        message=EmailMultiAlternatives(subject,text,mail_config('FROM_EMAIL'),[target],connection=conn,headers={'Auto-Submitted':'auto-generated'})
+                        if item.kind=='password_recovery':
+                            from django.utils.html import escape
+                            message.attach_alternative('<p>NAS 계정 비밀번호 재설정 안내입니다. 요청 후 30분 동안 한 번만 사용할 수 있습니다.</p><p><a style="display:inline-block;padding:14px 20px;background:#dd254c;color:white;text-decoration:none" href="'+str(escape(link))+'">비밀번호 재설정</a></p><p>본인이 요청하지 않았다면 이 메일을 무시하세요.</p>','text/html')
+                        if message.send()!=1:raise OSError()
                     item.state='sent';item.error_code='';report['sent']+=1
+                    if item.kind=='password_recovery':item.payload.pop('encrypted_token',None)
                 except Exception as error:
                     item.error_code=type(error).__name__;item.state='failed' if item.attempts>=5 else 'pending'
                     item.available_at=timezone.now()+timedelta(minutes=2**item.attempts);report['failed']+=1
