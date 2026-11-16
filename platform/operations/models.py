@@ -443,3 +443,33 @@ class PasswordRecovery(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
+
+
+
+class PortalArticle(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=10, choices=[('NOTICE','공지'),('HELP','도움말')])
+    title = models.CharField(max_length=200, blank=True)
+    body = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=[('DRAFT','초안'),('PUBLISHED','게시'),('ARCHIVED','보관')], default='DRAFT')
+    company = models.ForeignKey(Company, null=True, blank=True, on_delete=models.PROTECT)
+    pinned = models.BooleanField(default=False)
+    sort_order = models.PositiveIntegerField(default=0)
+    version = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+    published_at = models.DateTimeField(null=True, blank=True)
+    class Meta:
+        indexes = [models.Index(fields=['status','kind','company'],name='portal_article_visible')]
+
+
+class PortalArticleImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    article = models.ForeignKey(PortalArticle, on_delete=models.CASCADE, related_name='images')
+    file = models.FileField(upload_to='portal-articles/%Y/%m/')
+    caption = models.CharField(max_length=200, blank=True)
+    position = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
