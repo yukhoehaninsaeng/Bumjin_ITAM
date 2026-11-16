@@ -3925,3 +3925,13 @@ body:not(.loginBody) {font-family:"Noto Sans KR",system-ui,sans-serif;color:#242
   .workspaceHeader .globalBrand strong,
   .workspaceHeader .globalBrand > span { display: none; }
 }
+
+
+.directoryAccessCard { display:flex; justify-content:space-between; align-items:center; gap:16px; border:1px solid var(--edge); border-radius:8px; padding:16px; margin:12px 0; min-width:0; }
+.directoryAccessCard > div:first-child { display:grid; gap:6px; min-width:0; overflow-wrap:anywhere; }
+.directoryAccessCard small { color:#697586; }
+.directoryAccessActions { display:flex; flex-wrap:wrap; gap:8px; }
+#myNasPassword { display:grid; gap:14px; max-width:560px; margin-top:22px; }
+#myNasPassword label, #nasReset label, #vpnEditor > label, #vpnReview > label { display:grid; gap:6px; margin:12px 0; }
+#temporaryNasPassword { font-family:monospace; font-size:18px; }
+@media(max-width:650px) { .directoryAccessCard { flex-direction:column; align-items:stretch; padding:14px; } .directoryAccessActions { display:grid; grid-template-columns:1fr; } .directoryAccessActions button { min-height:44px; } }
