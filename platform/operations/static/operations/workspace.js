@@ -19,6 +19,7 @@
   const date = (s) =>
     s
       ? new Date(s).toLocaleString("ko-KR", {
+          timeZone: me?.time_zone || "Asia/Seoul",
           dateStyle: "short",
           timeStyle: "short",
         })
@@ -195,10 +196,8 @@
   }
   function localDateTime(s) {
     if (!s) return "";
-    const d = new Date(s);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-      .toISOString()
-      .slice(0, 16);
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:me?.time_zone || 'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(s)).map(p=>[p.type,p.value]));
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
   }
   function filesMarkup(files) {
     return !files.length
@@ -240,7 +239,7 @@
               )
               .join(
                 "",
-              )}</select></label><label>목표 처리일<input type="datetime-local" name="due_at" value="${localDateTime(t.due_at)}"></label><p class="fieldHelp">현재 브라우저 시간대 기준으로 입력합니다.</p><div class="formError" role="alert"></div><div class="formActions"><button>처리 설정 저장</button></div></form>`
+              )}</select></label><label>목표 처리일<input type="datetime-local" name="due_at" value="${localDateTime(t.due_at)}"></label><p class="fieldHelp">${esc(me.time_zone || "Asia/Seoul")} 기준으로 입력합니다.</p><div class="formError" role="alert"></div><div class="formActions"><button>처리 설정 저장</button></div></form>`
           : ""
       }</article><article class="insightCard sectionGap"><h3>관련 자산</h3>${t.assets.map((a) => `<p><a href="/${area}/assets?asset=${a.id}"><b>${esc(a.model)}</b><small class="muted"> ${esc(a.number)} →</small></a></p>`).join("") || '<p class="muted">연결된 자산이 없습니다.</p>'}</article></section></div>`;
     const metadataForm = document.getElementById("metadataForm");
@@ -255,7 +254,7 @@
               expected_version: currentTicket.version,
               priority: data.get("priority"),
               due_at: data.get("due_at")
-                ? new Date(data.get("due_at")).toISOString()
+                ? data.get("due_at")
                 : null,
             },
           });
@@ -952,6 +951,84 @@
       if (all) all.checked = selected > 0 && selected === document.querySelectorAll(".assetSelect").length;
     }
   });
+  async function adminSettings() {
+    const [mailResult, ldapResult, systemResult, grantResult] = await Promise.all([
+      call('/admin/settings/mail'), call('/admin/settings/ldap'), call('/admin/settings/system'), call('/admin/settings/grants')
+    ]);
+    const labels = {
+      ENABLED:'메일 알림 사용',PUBLIC_BASE_URL:'프로그램 접속 주소',FROM_EMAIL:'보내는 이메일',REPLY_ADDRESS:'답장 수신 이메일',
+      SMTP_HOST:'SMTP 호스트',SMTP_PORT:'SMTP 포트',SMTP_USER:'SMTP 계정',SMTP_PASSWORD:'SMTP 비밀번호',SMTP_USE_TLS:'STARTTLS 사용 (587)',SMTP_USE_SSL:'SSL 사용 (465)',
+      INBOUND_ENABLED:'메일 답장 자동 등록',IMAP_HOST:'IMAP 호스트',IMAP_PORT:'IMAP 포트',IMAP_USER:'IMAP 계정',IMAP_PASSWORD:'IMAP 비밀번호',IMAP_FOLDER:'수신 폴더',IMAP_CA_FILE:'IMAP CA 인증서 경로',AUTH_SERV_ID:'수신 인증 게이트웨이 ID',
+      LDAP_HOST:'LDAP 호스트',LDAP_PORT:'LDAPS 포트',LDAP_BASE_DN:'Base DN',LDAP_BIND_DN:'연결 계정 Bind DN',LDAP_BIND_PASSWORD:'연결 비밀번호',LDAP_CA_FILE:'CA 인증서 경로',LDAP_DIRECTORY_SOURCE:'디렉터리 소스 이름',LDAP_ID_ATTRIBUTE:'사용자 고유 ID 속성',LDAP_USER_FILTER:'사용자 조회 필터',LDAP_DEPARTMENT_ATTRIBUTE:'NAS 부서 속성',LDAP_DEPARTMENT_WRITE_ENABLED:'NAS 부서 쓰기 사용'
+    };
+    const booleans = new Set(['ENABLED','SMTP_USE_TLS','SMTP_USE_SSL','INBOUND_ENABLED','LDAP_DEPARTMENT_WRITE_ENABLED']);
+    function fields(group, result) {
+      const d=result.data;
+      return Object.keys(labels).filter(k => group==='ldap' ? k.startsWith('LDAP_') : !k.startsWith('LDAP_')).map(k => {
+        const secret=k.endsWith('PASSWORD'), value=d.values[k] ?? '';
+        return `<label>${esc(labels[k])}${booleans.has(k) ? `<select name="${k}"><option value="0" ${String(value)==='0'?'selected':''}>꺼짐</option><option value="1" ${String(value)==='1'?'selected':''}>켜짐</option></select>` : `<input name="${k}" type="${secret?'password':k.endsWith('PORT')?'number':'text'}" ${k.endsWith('PORT')?'min="1" max="65535"':''} value="${secret?'':esc(value)}" ${secret?'autocomplete="new-password"':''} placeholder="${secret?(d.secret_configured[k]?'저장됨 · 빈칸이면 유지':'새 비밀번호 입력'):''}">`}</label>`;
+      }).join('');
+    }
+    const roleNames={system_admin:'시스템 관리자',asset_manager:'자산 관리자',support_agent:'티켓 담당자',organization_manager:'조직 관리자'};
+    main.innerHTML = heading('관리자 설정', `로그 표시 시간대: ${me.time_zone}. 권한과 연결 설정 변경 이력을 기록합니다.`) + `
+      <nav class="settingsTabs" aria-label="설정 종류">${[['permissions','사용자 권한'],['mail','SMTP · 수신 메일'],['ldap','LDAP 연결'],['system','시간대'],['history','변경 이력']].map(([id,label])=>`<button class="secondary" data-settings-tab="${id}" aria-pressed="${id==='permissions'}">${label}</button>`).join('')}</nav>
+      <section data-settings-panel="permissions" class="settingsPanel"><h2>LDAP 사용자 관리자 권한</h2><p>LDAP 연결을 완료한 재직자를 검색하고 역할·법인 범위를 지정하세요.</p><form id="settingsUserSearch" class="toolbar"><input name="q" aria-label="LDAP 사용자 검색" placeholder="이름 또는 LDAP 계정"><button type="submit">검색</button></form><div id="settingsAccounts"></div>
+      <form id="grantForm"><h3 id="selectedAccount">사용자를 선택하세요</h3><input type="hidden" name="employee_id"><div class="grid"><label>역할<select name="role">${grantResult.data.roles.map(r=>`<option value="${r}">${esc(roleNames[r]||r)}</option>`).join('')}</select></label><label>권한 범위<select name="scope_type"><option value="COMPANY">선택 법인</option><option value="GLOBAL">전체 법인</option></select></label><label>법인<select name="company_id">${grantResult.data.companies.map(c=>`<option value="${c.id}">${esc(c.code)}</option>`).join('')}</select></label><label>지원팀 (티켓 담당자)<select name="team_id"><option value="">선택</option>${grantResult.data.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label></div><p class="muted">시스템 관리자는 전체 범위를 선택합니다. 티켓 담당자는 지원팀도 선택해야 합니다.</p><div class="formError" role="alert"></div><button type="submit">권한 부여</button></form></section>
+      ${[['mail','SMTP · 수신 메일',mailResult],['ldap','LDAP 연결',ldapResult]].map(([group,title,result])=>`<section data-settings-panel="${group}" class="settingsPanel" hidden><h2>${title}</h2><p>${group==='mail'?'발송은 SMTP, 메일 답장 등록은 IMAP 설정을 사용합니다. 수신 게이트웨이 인증 설정을 확인한 뒤 자동 등록을 켜세요.':'기존 LDAP 계정 연결·로그인·부서 반영에 같은 설정을 사용합니다. LDAPS 인증서를 검증합니다.'}</p>${!result.data.encryption_ready?'<div class="notice">비밀번호 저장 전에 서버 암호화 키를 설정해야 합니다. ADMIN_SETTINGS.md를 확인하세요.</div>':''}<form data-settings-form="${group}" data-version="${result.data.version}"><div class="grid">${fields(group,result)}</div><p class="muted">비밀번호 빈칸은 기존 값을 유지합니다. 연결 테스트는 저장한 값으로 인증만 확인합니다.</p><div class="formError" role="alert"></div><div class="actions"><button type="submit">설정 저장</button><button type="button" class="secondary" data-connection-test="${group}">저장한 연결 테스트</button></div></form><p data-test-result="${group}" role="status"></p></section>`).join('')}
+      <section data-settings-panel="system" class="settingsPanel" hidden><h2>시간대 설정</h2><p>업무 처리 기록은 UTC로 저장하고 선택한 시간대로 표시합니다. 서버 시계는 운영체제의 NTP 설정을 사용합니다.</p><form data-settings-form="system" data-version="${systemResult.data.version}"><label>업무 표시 시간대<select name="TIME_ZONE">${systemResult.data.timezones.map(z=>`<option value="${esc(z)}" ${z===systemResult.data.values.TIME_ZONE?'selected':''}>${esc(z)}</option>`).join('')}</select></label><p>현재 시각: <b>${esc(date(new Date().toISOString()))}</b></p><div class="formError" role="alert"></div><button type="submit">시간대 저장</button></form></section>
+      <section data-settings-panel="history" class="settingsPanel" hidden><h2>설정 · 권한 변경 이력</h2><div id="settingsHistory"></div></section>`;
+    function tab(name) {
+      main.querySelectorAll('[data-settings-panel]').forEach(p=>p.hidden=p.dataset.settingsPanel!==name);
+      main.querySelectorAll('[data-settings-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.settingsTab===name)));
+    }
+    main.querySelectorAll('[data-settings-tab]').forEach(b=>b.onclick=()=>tab(b.dataset.settingsTab));
+    main.querySelectorAll('[data-settings-form]').forEach(form=>form.onsubmit=event=>{
+      event.preventDefault();submit(form,async()=>{
+        const group=form.dataset.settingsForm, values=Object.fromEntries(new FormData(form));
+        const result=await call('/admin/settings/'+group,{method:'PATCH',body:{values,version:Number(form.dataset.version)}});
+        form.dataset.version=result.data.version;
+        form.querySelectorAll('input[type="password"]').forEach(input=>{input.value='';input.placeholder='저장됨 · 빈칸이면 유지';});
+        if(group==='system') {me.time_zone=values.TIME_ZONE;await adminSettings();tab('system');}
+        toast('설정을 저장했습니다.');await loadHistory();
+      });
+    });
+    main.querySelectorAll('[data-connection-test]').forEach(button=>button.onclick=async()=>{
+      const group=button.dataset.connectionTest;button.disabled=true;
+      try {const r=await call(`/admin/settings/${group}/test`,{method:'POST',body:{}});main.querySelector(`[data-test-result="${group}"]`).textContent=r.data.message;await loadHistory();}
+      catch(error){toast(error.message);}finally{button.disabled=false;}
+    });
+    let accountPage=1, query='';
+    async function loadAccounts(page=1) {
+      const result=await call('/admin/settings/accounts?'+new URLSearchParams({q:query,page,page_size:20}));accountPage=page;
+      const target=document.getElementById('settingsAccounts');
+      target.innerHTML=result.data.map(e=>`<article class="settingsAccount"><button type="button" class="secondary" data-pick-account="${e.id}">${esc(e.name)} · ${esc(e.uid)} · ${esc(e.company)}</button><div>${e.grants.map(g=>`<span>${esc(roleNames[g.role]||g.role)} · ${g.scope_type==='GLOBAL'?'전체':esc(grantResult.data.companies.find(c=>c.id===g.company_id)?.code||'법인')} <button type="button" class="secondary" data-revoke-grant="${g.id}">해제</button></span>`).join('')||'<small>관리 권한 없음</small>'}</div></article>`).join('')||'<p>검색된 LDAP 사용자가 없습니다. 계정 동기화를 먼저 실행하세요.</p>';
+      target.innerHTML+=`<div class="page"><span>${result.meta.total}명 · ${page}페이지</span>${page>1?'<button type="button" class="secondary" data-account-prev>이전</button>':''}${page*result.meta.page_size<result.meta.total?'<button type="button" class="secondary" data-account-next>다음</button>':''}</div>`;
+      target.querySelectorAll('[data-pick-account]').forEach(button=>button.onclick=()=>{
+        const e=result.data.find(e=>e.id===button.dataset.pickAccount);document.getElementById('grantForm').elements.employee_id.value=e.id;document.getElementById('selectedAccount').textContent=e.name+' · '+e.uid;
+      });
+      target.querySelectorAll('[data-revoke-grant]').forEach(button=>button.onclick=async()=>{
+        if(!confirm('이 관리 권한을 해제할까요?'))return;
+        try {await call('/admin/settings/grants',{method:'DELETE',body:{grant_id:Number(button.dataset.revokeGrant)}});await loadAccounts(accountPage);await loadHistory();toast('권한을 해제했습니다.');}catch(error){toast(error.message);}
+      });
+      const prev=target.querySelector('[data-account-prev]'),next=target.querySelector('[data-account-next]');
+      if(prev)prev.onclick=()=>loadAccounts(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>loadAccounts(page+1).catch(e=>toast(e.message));
+    }
+    document.getElementById('settingsUserSearch').onsubmit=event=>{event.preventDefault();query=new FormData(event.target).get('q');loadAccounts().catch(e=>toast(e.message));};
+    const grantForm=document.getElementById('grantForm');
+    grantForm.onsubmit=event=>{event.preventDefault();submit(grantForm,async()=>{
+      const payload=Object.fromEntries(new FormData(grantForm));if(payload.scope_type==='GLOBAL')delete payload.company_id;
+      await call('/admin/settings/grants',{method:'POST',body:payload});await loadAccounts(accountPage);await loadHistory();toast('권한을 부여했습니다.');
+    });};
+    async function loadHistory(page=1) {
+      const result=await call('/admin/settings/history?page='+page);
+      const target=document.getElementById('settingsHistory');
+      target.innerHTML=result.data.map(e=>`<article class="settingsAudit"><time datetime="${esc(e.created_at)}">${esc(date(e.created_at))}</time><b>${esc(e.action)}</b><span>변경자 ID: ${esc(e.actor)}</span><small>${esc(JSON.stringify(e.data))}</small></article>`).join('')||'<p>변경 이력이 없습니다.</p>';
+      target.innerHTML+=`<div class="page">${page>1?'<button class="secondary" data-history-prev>이전</button>':''}${page*result.meta.page_size<result.meta.total?'<button class="secondary" data-history-next>다음</button>':''}</div>`;
+      const prev=target.querySelector('[data-history-prev]'),next=target.querySelector('[data-history-next]');if(prev)prev.onclick=()=>loadHistory(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>loadHistory(page+1).catch(e=>toast(e.message));
+    }
+    await Promise.all([loadAccounts(),loadHistory()]);
+  }
+
   async function render() {
     try {
       me = (await call("/auth/me")).data;
@@ -973,13 +1050,7 @@
       else if (location.pathname.endsWith("/maintenance")) await maintenance();
       else if (location.pathname.endsWith("/asset-analysis")) await assetAnalysis();
       else if (location.pathname.endsWith("/organizations")) await people();
-      else if (location.pathname.endsWith("/settings"))
-        main.innerHTML =
-          heading(
-            "시스템 설정",
-            "개인 계정·LDAP 설정 UI는 다음 개발 단계에서 연결합니다.",
-          ) +
-          '<div class="notice">현재 연결 설정은 환경변수와 관리 명령으로 구성합니다. 비밀번호·LDAP 비밀값을 이 화면에 표시하지 않습니다.</div>';
+      else if (location.pathname.endsWith("/settings")) await adminSettings();
       else if (
         location.pathname.endsWith("/tickets") ||
         location.pathname.endsWith("/requests")
@@ -994,4 +1065,5 @@
   document.getElementById("refreshPage").onclick = render;
   render();
 })();
+
 
