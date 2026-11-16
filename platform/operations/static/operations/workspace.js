@@ -961,8 +961,8 @@
       INBOUND_ENABLED:'메일 답장 자동 등록',IMAP_HOST:'IMAP 호스트',IMAP_PORT:'IMAP 포트',IMAP_USER:'IMAP 계정',IMAP_PASSWORD:'IMAP 비밀번호',IMAP_FOLDER:'수신 폴더',IMAP_CA_FILE:'IMAP CA 인증서 경로',AUTH_SERV_ID:'수신 인증 게이트웨이 ID',
       LDAP_HOST:'LDAP 호스트',LDAP_PORT:'LDAPS 포트',LDAP_BASE_DN:'Base DN',LDAP_BIND_DN:'연결 계정 Bind DN',LDAP_BIND_PASSWORD:'연결 비밀번호',LDAP_CA_FILE:'CA 인증서 경로',LDAP_DIRECTORY_SOURCE:'디렉터리 소스 이름',LDAP_ID_ATTRIBUTE:'사용자 고유 ID 속성',LDAP_USER_FILTER:'사용자 조회 필터',LDAP_DEPARTMENT_ATTRIBUTE:'NAS 부서 속성',LDAP_DEPARTMENT_WRITE_ENABLED:'NAS 부서 쓰기 사용'
     };
-    Object.assign(labels,{VPN_WRITE_ENABLED:'VPN 그룹 쓰기 사용',PASSWORD_WRITE_ENABLED:'NAS 비밀번호 변경 사용',LDAP_GROUPS_DN:'LDAP 그룹 Base DN',GROUP_MEMBER_ATTRIBUTE:'그룹 멤버 속성 (member 또는 memberUid)',VPN_GROUPS:'관리할 그룹 (|로 구분)',GW_VPN_GROUP:'그룹웨어 VPN 대상 그룹',GW_URL:'그룹웨어 HTTPS 주소',GW_USERNAME:'그룹웨어 연동 계정',GW_PASSWORD:'그룹웨어 비밀번호',GW_COOKIE:'그룹웨어 세션 쿠키 (선택)',GW_CA_FILE:'그룹웨어 CA 인증서 경로',VPN_INTERNAL_URL:'VPN 내부 안내 주소 (선택)',VPN_EXTERNAL_URL:'VPN 외부 안내 주소 (선택)'});
-    const booleans = new Set(['ENABLED','SMTP_USE_TLS','SMTP_USE_SSL','INBOUND_ENABLED','LDAP_DEPARTMENT_WRITE_ENABLED','VPN_WRITE_ENABLED','PASSWORD_WRITE_ENABLED']);
+    Object.assign(labels,{VPN_WRITE_ENABLED:'VPN 그룹 쓰기 사용',PASSWORD_WRITE_ENABLED:'NAS 비밀번호 변경 사용',PASSWORD_RECOVERY_ENABLED:'이메일 비밀번호 재설정 사용',LDAP_GROUPS_DN:'LDAP 그룹 Base DN',GROUP_MEMBER_ATTRIBUTE:'그룹 멤버 속성 (member 또는 memberUid)',VPN_GROUPS:'관리할 그룹 (|로 구분)',GW_VPN_GROUP:'그룹웨어 VPN 대상 그룹',GW_URL:'그룹웨어 HTTPS 주소',GW_USERNAME:'그룹웨어 연동 계정',GW_PASSWORD:'그룹웨어 비밀번호',GW_COOKIE:'그룹웨어 세션 쿠키 (선택)',GW_CA_FILE:'그룹웨어 CA 인증서 경로',VPN_INTERNAL_URL:'VPN 내부 안내 주소 (선택)',VPN_EXTERNAL_URL:'VPN 외부 안내 주소 (선택)'});
+    const booleans = new Set(['ENABLED','SMTP_USE_TLS','SMTP_USE_SSL','INBOUND_ENABLED','LDAP_DEPARTMENT_WRITE_ENABLED','VPN_WRITE_ENABLED','PASSWORD_WRITE_ENABLED','PASSWORD_RECOVERY_ENABLED']);
     function fields(group, result) {
       const d=result.data;
       return Object.keys(labels).filter(k => Object.hasOwn(d.values,k)||Object.hasOwn(d.secret_configured,k)).map(k => {
