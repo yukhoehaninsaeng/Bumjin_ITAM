@@ -608,9 +608,11 @@
     drawTree();drawPeople();
   }
   async function portalHome() {
-    const [ticketResult, assetResult] = await Promise.all([
+    const [ticketResult, assetResult, noticeResult, helpResult] = await Promise.all([
       call("/portal/tickets"),
       call("/portal/assets"),
+      call("/portal/content/articles?kind=NOTICE&page_size=5"),
+      call("/portal/content/articles?kind=HELP&page_size=6"),
     ]);
     main.innerHTML =
       heading(
@@ -618,6 +620,7 @@
         "오류 화면을 붙여넣어 지원을 요청하면 담당자가 확인합니다.",
         "<button data-new-ticket>＋ 지원 요청</button>",
       ) +
+      portalBoardHome(noticeResult,helpResult) +
       `<div class="cards"><div class="card"><span>내 자산</span><strong>${assetResult.meta.total}</strong></div><div class="card"><span>내 요청</span><strong>${ticketResult.meta.total}</strong></div></div><h2>내 요청</h2>${rows(ticketResult.data.slice(0, 6))}<h2 class="sectionGap">내 자산</h2><div class="userDirectory">${
         assetResult.data
           .slice(0, 6)
@@ -646,6 +649,8 @@
     }
   }
   function closeDialog(force = false) {
+    const boardForm=dialog.querySelector('#boardEditor');
+    if(!force&&boardForm?.dataset.dirty==='true'&&!confirm('저장하지 않은 게시글 변경사항을 닫을까요?'))return;
     const form = dialog.querySelector("#ticketForm");
     if (
       !force &&
@@ -656,10 +661,13 @@
     dialog.close();
   }
   dialog.addEventListener("input", () => {
+    const boardForm=dialog.querySelector('#boardEditor');if(boardForm)boardForm.dataset.dirty='true';
     const form = dialog.querySelector("#ticketForm");
     if (form) form.dataset.dirty = "true";
   });
   dialog.addEventListener("cancel", (e) => {
+    const boardForm=dialog.querySelector('#boardEditor');
+    if(boardForm?.dataset.dirty==='true'&&!confirm('저장하지 않은 게시글 변경사항을 닫을까요?')){e.preventDefault();return;}
     if (
       dialog.querySelector("#ticketForm")?.dataset.dirty === "true" &&
       !confirm("작성 중인 요청을 닫을까요?")
@@ -972,12 +980,12 @@
     }
     const roleNames={system_admin:'시스템 관리자',asset_manager:'자산 관리자',support_agent:'티켓 담당자',organization_manager:'조직 관리자'};
     main.innerHTML = heading('관리자 설정', `로그 표시 시간대: ${me.time_zone}. 권한과 연결 설정 변경 이력을 기록합니다.`) + `
-      <nav class="settingsTabs" aria-label="설정 종류">${[['permissions','사용자 권한'],['mail','SMTP · 수신 메일'],['ldap','LDAP 연결'],['access','VPN · NAS'],['system','시간대'],['history','변경 이력']].map(([id,label])=>`<button class="secondary" data-settings-tab="${id}" aria-pressed="${id==='permissions'}">${label}</button>`).join('')}</nav>
+      <nav class="settingsTabs" aria-label="설정 종류">${[['permissions','사용자 권한'],['board','공지 · 도움말'],['mail','SMTP · 수신 메일'],['ldap','LDAP 연결'],['access','VPN · NAS'],['system','시간대'],['history','변경 이력']].map(([id,label])=>`<button class="secondary" data-settings-tab="${id}" aria-pressed="${id==='permissions'}">${label}</button>`).join('')}</nav>
       <section data-settings-panel="permissions" class="settingsPanel"><h2>LDAP 사용자 관리자 권한</h2><p>LDAP 연결을 완료한 재직자를 검색하고 역할·법인 범위를 지정하세요.</p><form id="settingsUserSearch" class="toolbar"><input name="q" aria-label="LDAP 사용자 검색" placeholder="이름 또는 LDAP 계정"><button type="submit">검색</button></form><div id="settingsAccounts"></div>
       <form id="grantForm"><h3 id="selectedAccount">사용자를 선택하세요</h3><input type="hidden" name="employee_id"><div class="grid"><label>역할<select name="role">${grantResult.data.roles.map(r=>`<option value="${r}">${esc(roleNames[r]||r)}</option>`).join('')}</select></label><label>권한 범위<select name="scope_type"><option value="COMPANY">선택 법인</option><option value="GLOBAL">전체 법인</option></select></label><label>법인<select name="company_id">${grantResult.data.companies.map(c=>`<option value="${c.id}">${esc(c.code)}</option>`).join('')}</select></label><label>지원팀 (티켓 담당자)<select name="team_id"><option value="">선택</option>${grantResult.data.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label></div><p class="muted">시스템 관리자는 전체 범위를 선택합니다. 티켓 담당자는 지원팀도 선택해야 합니다.</p><div class="formError" role="alert"></div><button type="submit">권한 부여</button></form></section>
       ${[['mail','SMTP · 수신 메일',mailResult],['ldap','LDAP 연결',ldapResult],['access','VPN · NAS',accessResult]].map(([group,title,result])=>`<section data-settings-panel="${group}" class="settingsPanel" hidden><h2>${title}</h2><p>${group==='access'?'VPN 그룹과 비밀번호 쓰기는 기본 꺼짐입니다. LDAP 연결 테스트 후 테스트 계정으로 검증하세요. 그룹웨어 연동은 계정/비밀번호 또는 세션 쿠키를 사용합니다.':group==='mail'?'발송은 SMTP, 메일 답장 등록은 IMAP 설정을 사용합니다. 수신 게이트웨이 인증 설정을 확인한 뒤 자동 등록을 켜세요.':'기존 LDAP 계정 연결·로그인·부서 반영에 같은 설정을 사용합니다. LDAPS 인증서를 검증합니다.'}</p>${!result.data.encryption_ready?'<div class="notice">비밀번호 저장 전에 서버 암호화 키를 설정해야 합니다. ADMIN_SETTINGS.md를 확인하세요.</div>':''}<form data-settings-form="${group}" data-version="${result.data.version}"><div class="grid">${fields(group,result)}</div><p class="muted">비밀번호 빈칸은 기존 값을 유지합니다. 연결 테스트는 저장한 값으로 인증만 확인합니다.</p><div class="formError" role="alert"></div><div class="actions"><button type="submit">설정 저장</button>${group!=='access'?`<button type="button" class="secondary" data-connection-test="${group}">저장한 연결 테스트</button>`:''}</div></form><p data-test-result="${group}" role="status"></p></section>`).join('')}
       <section data-settings-panel="system" class="settingsPanel" hidden><h2>시간대 설정</h2><p>업무 처리 기록은 UTC로 저장하고 선택한 시간대로 표시합니다. 서버 시계는 운영체제의 NTP 설정을 사용합니다.</p><form data-settings-form="system" data-version="${systemResult.data.version}"><label>업무 표시 시간대<select name="TIME_ZONE">${systemResult.data.timezones.map(z=>`<option value="${esc(z)}" ${z===systemResult.data.values.TIME_ZONE?'selected':''}>${esc(z)}</option>`).join('')}</select></label><p>현재 시각: <b>${esc(date(new Date().toISOString()))}</b></p><div class="formError" role="alert"></div><button type="submit">시간대 저장</button></form></section>
-      <section data-settings-panel="history" class="settingsPanel" hidden><h2>설정 · 권한 변경 이력</h2><div id="settingsHistory"></div></section>`;
+      <section data-settings-panel="board" class="settingsPanel" hidden></section><section data-settings-panel="history" class="settingsPanel" hidden><h2>설정 · 권한 변경 이력</h2><div id="settingsHistory"></div></section>`;
     function tab(name) {
       main.querySelectorAll('[data-settings-panel]').forEach(p=>p.hidden=p.dataset.settingsPanel!==name);
       main.querySelectorAll('[data-settings-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.settingsTab===name)));
@@ -1027,7 +1035,7 @@
       target.innerHTML+=`<div class="page">${page>1?'<button class="secondary" data-history-prev>이전</button>':''}${page*result.meta.page_size<result.meta.total?'<button class="secondary" data-history-next>다음</button>':''}</div>`;
       const prev=target.querySelector('[data-history-prev]'),next=target.querySelector('[data-history-next]');if(prev)prev.onclick=()=>loadHistory(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>loadHistory(page+1).catch(e=>toast(e.message));
     }
-    await Promise.all([loadAccounts(),loadHistory()]);
+    await Promise.all([loadAccounts(),loadHistory(),setupBoardAdmin(grantResult.data.companies)]);
   }
 
   async function directoryManagement() {
@@ -1069,6 +1077,49 @@
 
   async function myDirectoryAccount(){const r=(await call('/portal/account')).data;main.innerHTML=heading('내 NAS 계정 · VPN','현재 비밀번호를 확인한 뒤 NAS 비밀번호를 변경할 수 있습니다.')+`<section class="settingsPanel"><h2>${esc(r.uid||'LDAP 미연결')}</h2>${(r.vpn_links||[]).map(link=>`<p><a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.label)}</a></p>`).join('')}${r.leases.map(l=>`<article class="directoryAccessCard"><div><b>${esc(l.group)}</b><span>${esc(l.starts_on)} ~ ${l.permanent?'상시':esc(l.expires_on)}</span><small>${esc(l.status)} · ${esc(l.sync_state)}</small></div></article>`).join('')||'<p>등록된 VPN 사용 기간이 없습니다.</p>'}${r.linked&&r.password_enabled?`<form id="myNasPassword"><label>현재 비밀번호<input type="password" name="current_password" required autocomplete="current-password"></label><label>새 비밀번호 (12자 이상)<input type="password" name="new_password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label>새 비밀번호 확인<input type="password" name="confirm_password" required autocomplete="new-password"></label><div class="formError" role="alert"></div><button type="submit">NAS 비밀번호 변경</button></form>`:'<div class="notice">LDAP 계정 연결과 비밀번호 쓰기 설정을 관리자에게 확인하세요.</div>'}</section>`;const form=document.getElementById('myNasPassword');if(form)form.onsubmit=e=>{e.preventDefault();submit(form,async()=>{const result=await call('/portal/account',{method:'POST',body:Object.fromEntries(new FormData(form))});form.reset();toast(result.data.message);});};}
 
+  function portalArticleMarkup(article) {
+    return `<article class="portalArticle"><div class="portalArticleMeta"><span>${article.kind==='NOTICE'?'공지':'도움말'}</span>${article.pinned?'<span>상단 고정</span>':''}<time>${esc(date(article.published_at||article.updated_at))}</time></div><h2>${esc(article.title)}</h2><div class="portalArticleBody">${esc(article.body)}</div><div class="portalArticleImages">${(article.images||[]).map(image=>`<figure><a href="${esc(image.url)}" target="_blank" rel="noopener noreferrer"><img src="${esc(image.url)}" alt="${esc(image.caption||article.title)}" loading="lazy"></a>${image.caption?`<figcaption>${esc(image.caption)}</figcaption>`:''}</figure>`).join('')}</div></article>`;
+  }
+  function portalBoardHome(notices, help) {
+    const section=(title,kind,result)=>`<section class="portalBoardPanel"><div class="portalBoardHeading"><h2>${title}</h2><a href="/portal/knowledge?kind=${kind}">전체 보기</a></div>${result.data.length?`<ul class="portalArticleLinks">${result.data.map(a=>`<li><a href="/portal/knowledge?article=${a.id}">${a.pinned?'<span class="boardPinned">고정</span>':''}<span>${esc(a.title)}</span><time>${esc(date(a.published_at||a.updated_at))}</time></a></li>`).join('')}</ul>`:`<p class="muted">${kind==='NOTICE'?'등록된 공지가 없습니다.':'등록된 도움말이 없습니다.'}</p>`}</section>`;
+    return `<div class="portalBoards">${section('공지사항','NOTICE',notices)}${section('자주 찾는 도움말','HELP',help)}</div>`;
+  }
+  async function knowledge() {
+    const articleId=params.get('article');
+    if(articleId){const article=(await call('/portal/content/articles/'+encodeURIComponent(articleId))).data;main.innerHTML=heading(article.kind==='NOTICE'?'공지사항':'도움말','직원 안내 및 문제 해결 방법')+`<p><a href="/portal/knowledge?kind=${article.kind}">← 목록으로</a></p>`+portalArticleMarkup(article);return;}
+    const kind=params.get('kind')==='HELP'?'HELP':'NOTICE',q=params.get('q')||'',page=Number(params.get('page')||1);
+    const r=await call('/portal/content/articles?'+new URLSearchParams({kind,q,page,page_size:20}));
+    main.innerHTML=heading('공지 · 자주 찾는 도움말','공지와 업무에 필요한 해결 방법을 찾아보세요.')+`<nav class="settingsTabs"><a href="?kind=NOTICE" ${kind==='NOTICE'?'aria-current="page"':''}>공지사항</a><a href="?kind=HELP" ${kind==='HELP'?'aria-current="page"':''}>자주 찾는 도움말</a></nav><form class="toolbar"><input type="hidden" name="kind" value="${kind}"><input name="q" value="${esc(q)}" placeholder="제목·내용 검색" aria-label="게시글 검색"><button>검색</button></form><div class="portalBoardPanel"><ul class="portalArticleLinks">${r.data.map(a=>`<li><a href="?article=${a.id}"><span>${a.pinned?'[고정] ':''}${esc(a.title)}<small>${esc(a.summary)}</small></span><time>${esc(date(a.published_at||a.updated_at))}</time></a></li>`).join('')||'<li>검색된 게시글이 없습니다.</li>'}</ul></div><div class="page"><span>${r.meta.total}건</span>${page>1?`<a href="?${new URLSearchParams({kind,q,page:page-1})}">이전</a>`:''}${page*r.meta.page_size<r.meta.total?`<a href="?${new URLSearchParams({kind,q,page:page+1})}">다음</a>`:''}</div>`;
+  }
+
+  async function setupBoardAdmin(companies) {
+    const panel=main.querySelector('[data-settings-panel="board"]');
+    panel.innerHTML=`<h2>공지 · 자주 찾는 도움말 게시글</h2><p>초안 작성 후 게시하면 해당 직원의 포털에 표시됩니다. 이미지는 최대 5장까지 넣을 수 있습니다.</p><div class="actions"><button type="button" data-new-article="NOTICE">공지 작성</button><button type="button" class="secondary" data-new-article="HELP">도움말 작성</button></div><form id="boardAdminSearch" class="toolbar"><input name="q" placeholder="게시글 검색" aria-label="관리 게시글 검색"><select name="kind" aria-label="게시글 종류"><option value="">전체 종류</option><option value="NOTICE">공지</option><option value="HELP">도움말</option></select><select name="status" aria-label="게시 상태"><option value="">전체 상태</option><option value="DRAFT">초안</option><option value="PUBLISHED">게시</option><option value="ARCHIVED">보관</option></select><button type="submit" class="secondary">검색</button></form><div id="boardAdminList"></div>`;
+    let query={},currentPage=1;
+    async function load(page=1){const r=await call('/admin/content/articles?'+new URLSearchParams({...query,page,page_size:20}));currentPage=page;const list=panel.querySelector('#boardAdminList');list.innerHTML=r.data.map(a=>`<article class="boardAdminRow"><div><b>${esc(a.title||'제목 없는 초안')}</b><span>${a.kind==='NOTICE'?'공지':'도움말'} · ${{DRAFT:'초안',PUBLISHED:'게시',ARCHIVED:'보관'}[a.status]} · ${esc(a.company)}${a.pinned?' · 상단 고정':''}</span><time>${esc(date(a.updated_at))}</time></div><div class="boardAdminActions"><button type="button" class="secondary" data-edit-article="${a.id}">수정</button><button type="button" class="secondary" data-preview-article="${a.id}">미리보기</button>${a.status!=='ARCHIVED'?`<button type="button" class="secondary" data-archive-article="${a.id}" data-version="${a.version}">보관</button>`:''}</div></article>`).join('')||'<p>등록된 게시글이 없습니다.</p>';list.innerHTML+=`<div class="page"><span>${r.meta.total}건 · ${page}페이지</span>${page>1?'<button class="secondary" type="button" data-board-prev>이전</button>':''}${page*r.meta.page_size<r.meta.total?'<button class="secondary" type="button" data-board-next>다음</button>':''}</div>`;const prev=list.querySelector('[data-board-prev]'),next=list.querySelector('[data-board-next]');if(prev)prev.onclick=()=>load(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>load(page+1).catch(e=>toast(e.message));}
+    panel.querySelector('#boardAdminSearch').onsubmit=event=>{event.preventDefault();query=Object.fromEntries(new FormData(event.target));load().catch(e=>toast(e.message));};
+    panel.onclick=async event=>{const button=event.target.closest('button');if(!button)return;try{
+      if(button.dataset.newArticle){button.disabled=true;const r=await call('/admin/content/articles',{method:'POST',body:{kind:button.dataset.newArticle}});await load();await editor(r.data);}
+      else if(button.dataset.editArticle){const r=await call('/admin/content/articles/'+button.dataset.editArticle);await editor(r.data);}
+      else if(button.dataset.previewArticle){const r=await call('/admin/content/articles/'+button.dataset.previewArticle);showDialog('게시글 미리보기',portalArticleMarkup(r.data));}
+      else if(button.dataset.archiveArticle){if(!confirm('직원 포털에서 이 글을 내리고 보관할까요?'))return;await call('/admin/content/articles/'+button.dataset.archiveArticle,{method:'DELETE',body:{expected_version:Number(button.dataset.version)}});await load(currentPage);toast('게시글을 보관했습니다.');}
+    }catch(error){toast(error.message);}finally{if(button.isConnected)button.disabled=false;}};
+    async function editor(article){
+      let images=article.images.map(i=>({...i})),uploading=false;
+      showDialog('공지 · 도움말 작성',`<form id="boardEditor"><div class="grid"><label>게시글 종류<select name="kind"><option value="NOTICE" ${article.kind==='NOTICE'?'selected':''}>공지</option><option value="HELP" ${article.kind==='HELP'?'selected':''}>도움말</option></select></label><label>공개 대상<select name="company_id"><option value="">전체 직원</option>${companies.map(c=>`<option value="${c.id}" ${c.id===article.company_id?'selected':''}>${esc(c.code)}</option>`).join('')}</select></label><label>상태<select name="status">${[['DRAFT','초안'],['PUBLISHED','게시'],['ARCHIVED','보관']].map(([v,l])=>`<option value="${v}" ${v===article.status?'selected':''}>${l}</option>`).join('')}</select></label><label>상단 고정<select name="pinned"><option value="0">사용 안 함</option><option value="1" ${article.pinned?'selected':''}>고정</option></select></label><label>표시 순서 (작은 값 우선)<input name="sort_order" type="number" min="0" max="9999" value="${article.sort_order}"></label></div><label>제목<input name="title" maxlength="200" value="${esc(article.title)}" placeholder="제목을 입력하세요"></label><label>본문<textarea name="body" maxlength="20000" rows="10" placeholder="직원에게 안내할 내용을 입력하세요">${esc(article.body)}</textarea></label><div class="boardImageDrop" tabindex="0"><label>이미지 추가 (파일당 5MB · 최대 5장)<input type="file" id="boardImageFiles" accept="image/png,image/jpeg,image/webp" multiple></label><p class="muted">이미지를 끌어 놓거나 본문에 스크린샷을 붙여넣을 수 있습니다. 첨부 이미지는 본문 아래에 표시됩니다.</p></div><div id="boardImageList"></div><p id="boardUploadStatus" role="status"></p><div class="formError" role="alert"></div><div class="actions"><button type="button" class="secondary" id="boardPreviewButton">미리보기</button><button type="submit">저장</button></div><div id="boardDraftPreview" hidden></div></form>`);
+      const form=document.getElementById('boardEditor'),input=document.getElementById('boardImageFiles'),imageList=document.getElementById('boardImageList'),drop=form.querySelector('.boardImageDrop');
+      function drawImages(){imageList.innerHTML=images.map((i,index)=>`<figure class="boardImageEditor"><img src="${esc(i.url)}" alt="첨부 이미지 ${index+1}"><div><label>이미지 설명<input data-image-caption="${i.id}" maxlength="200" value="${esc(i.caption)}"></label><div class="boardAdminActions"><button type="button" class="secondary" data-image-up="${i.id}" ${index===0?'disabled':''}>위로</button><button type="button" class="secondary" data-image-down="${i.id}" ${index===images.length-1?'disabled':''}>아래로</button><button type="button" class="secondary" data-image-remove="${i.id}">제외</button></div></div></figure>`).join('');}
+      imageList.oninput=event=>{if(event.target.dataset.imageCaption){const image=images.find(i=>i.id===event.target.dataset.imageCaption);if(image)image.caption=event.target.value;}};
+      imageList.onclick=event=>{const button=event.target.closest('button');if(!button||uploading)return;const id=button.dataset.imageRemove||button.dataset.imageUp||button.dataset.imageDown,index=images.findIndex(i=>i.id===id);if(index<0)return;form.dataset.dirty='true';if(button.dataset.imageRemove)images.splice(index,1);else {const other=button.dataset.imageUp?index-1:index+1;if(other>=0&&other<images.length)[images[index],images[other]]=[images[other],images[index]];}drawImages();};
+      async function upload(files){if(uploading)return;if(images.length+files.length>5){toast('이미지는 최대 5장까지 첨부할 수 있습니다.');return;}uploading=true;input.disabled=true;form.querySelector('button[type="submit"]').disabled=true;const status=document.getElementById('boardUploadStatus');try{for(const file of files){status.textContent='이미지를 업로드하고 있습니다.';const body=new FormData();body.append('file',file);body.append('expected_version',article.version);const r=await call(`/admin/content/articles/${article.id}/images`,{method:'POST',body});images.push(r.data);form.dataset.dirty='true';drawImages();}status.textContent='이미지 준비 완료. 저장하면 게시글에 반영됩니다.';}catch(error){status.textContent=error.message;}finally{uploading=false;input.disabled=false;input.value='';form.querySelector('button[type="submit"]').disabled=false;}}
+      input.onchange=()=>upload(Array.from(input.files));form.elements.body.addEventListener('paste',event=>{const files=Array.from(event.clipboardData?.items||[]).filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(files.length){event.preventDefault();upload(files);}});drop.ondragover=event=>event.preventDefault();drop.ondrop=event=>{event.preventDefault();upload(Array.from(event.dataTransfer.files));};
+      document.getElementById('boardPreviewButton').onclick=()=>{const preview=document.getElementById('boardDraftPreview');preview.hidden=false;preview.innerHTML=portalArticleMarkup({...article,kind:form.elements.kind.value,title:form.elements.title.value,body:form.elements.body.value,images,pinned:form.elements.pinned.value==='1'});};
+      form.onsubmit=event=>{event.preventDefault();if(uploading)return;submit(form,async()=>{const values=Object.fromEntries(new FormData(form));const payload={...values,company_id:values.company_id||null,pinned:values.pinned==='1',sort_order:Number(values.sort_order),expected_version:article.version,images:images.map(i=>({id:i.id,caption:i.caption}))};await call('/admin/content/articles/'+article.id,{method:'PATCH',body:payload});form.dataset.dirty='false';closeDialog();await load(currentPage);toast('게시글을 저장했습니다.');});};
+      drawImages();
+    }
+    await load();
+  }
+
   async function render() {
     try {
       me = (await call("/auth/me")).data;
@@ -1085,7 +1136,8 @@
         });
       const create = document.querySelector(".sidebarCreate");
       if (!portal && !me.roles.includes("support_agent")) create.hidden = true;
-      if (params.get("ticket")) await ticketDetail(params.get("ticket"));
+      if (portal && location.pathname.endsWith("/knowledge")) await knowledge();
+      else if (params.get("ticket")) await ticketDetail(params.get("ticket"));
       else if (location.pathname.endsWith("/assets")) await assets();
       else if (location.pathname.endsWith("/maintenance")) await maintenance();
       else if (location.pathname.endsWith("/asset-analysis")) await assetAnalysis();
@@ -1108,6 +1160,7 @@
   document.getElementById("refreshPage").onclick = render;
   render();
 })();
+
 
 
 
