@@ -24,6 +24,7 @@ from .models import (
 )
 from .uploads import MAX_FILES, validate_upload
 from .transactions import read_snapshot
+from .runtime_settings import display_timezone
 from .ldap_department import sync_state
 
 
@@ -197,6 +198,7 @@ def me(request):
         {
             "data": {
                 "username": request.user.username,
+                "time_zone": display_timezone(),
                 "name": services.actor_name(request.user),
                 "manager": policies.is_manager(request.user),
                 "employee_id": str(employee.id) if employee else None,

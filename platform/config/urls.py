@@ -1,7 +1,12 @@
 from django.urls import path
-from operations import api, views
+from operations import api, views, admin_settings
 
 urlpatterns = [
+    path("api/v1/admin/settings/accounts", admin_settings.directory_accounts),
+    path("api/v1/admin/settings/grants", admin_settings.grants),
+    path("api/v1/admin/settings/history", admin_settings.history),
+    path("api/v1/admin/settings/<str:group>/test", admin_settings.connection_test),
+    path("api/v1/admin/settings/<str:group>", admin_settings.configuration),
     path("", views.home),
     path("login", views.login_page),
     path("logout", views.logout_page),
@@ -53,4 +58,5 @@ for route in [
     "portal/assets",
 ]:
     urlpatterns.append(path(route, views.workspace))
+
 

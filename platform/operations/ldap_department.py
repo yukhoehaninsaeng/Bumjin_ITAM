@@ -14,7 +14,9 @@ class DepartmentSyncError(ValueError):
 
 
 def config(name, default=''):
-    return getattr(settings, 'ITAM_LDAP', {}).get(name, os.environ.get(name, default))
+    from .runtime_settings import override
+    legacy=getattr(settings, 'ITAM_LDAP', {}).get(name, os.environ.get(name, default))
+    return override('ldap',name,legacy)
 
 
 def attribute(name):
@@ -127,3 +129,4 @@ def sync_employee(employee_id, actor):
     AuditEvent.objects.create(actor=actor, company=employee.company, action='employee.ldap_department_sync',
         data={'employee_id': str(employee.id), 'status': state['status'], 'value': state['value']})
     return employee, state
+

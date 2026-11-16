@@ -22,7 +22,9 @@ from .models import Employee, Ticket, TicketMail, InboundTicketMail
 
 
 def config(key, default=''):
-    return getattr(settings,'ITAM_MAIL',{}).get(key,os.environ.get('ITAM_MAIL_'+key,default))
+    from .runtime_settings import override
+    legacy=getattr(settings,'ITAM_MAIL',{}).get(key,os.environ.get('ITAM_MAIL_'+key,default))
+    return override('mail',key,legacy)
 
 
 def enabled(key='ENABLED'):

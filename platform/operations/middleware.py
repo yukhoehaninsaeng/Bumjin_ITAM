@@ -15,7 +15,12 @@ class ActiveEmployeeMiddleware:
             .exists()
         ):
             logout(request)
-        response = self.get_response(request)
+        from zoneinfo import ZoneInfo
+        from django.utils import timezone
+        from .runtime_settings import display_timezone
+        with timezone.override(ZoneInfo(display_timezone())):
+            response = self.get_response(request)
         if request.path.startswith(("/api/", "/admin", "/portal")):
             response["Cache-Control"] = "private, no-store"
         return response
+
