@@ -371,3 +371,11 @@ class InboundTicketMail(models.Model):
     received_at = models.DateTimeField(default=timezone.now)
     outcome = models.CharField(max_length=32)
     message = models.OneToOneField(TicketMessage, null=True, blank=True, on_delete=models.PROTECT)
+
+
+class SystemConfiguration(models.Model):
+    key = models.CharField(max_length=20, primary_key=True)
+    values = models.JSONField(default=dict, blank=True)
+    secrets = models.TextField(blank=True)
+    version = models.PositiveIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
