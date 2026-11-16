@@ -430,3 +430,16 @@ class VpnApproval(models.Model):
     version = models.PositiveIntegerField(default=1)
     imported_at = models.DateTimeField(default=timezone.now)
     metadata = models.JSONField(default=dict)
+
+
+class PasswordRecovery(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT)
+    token_hash = models.CharField(max_length=64, unique=True)
+    address = models.EmailField()
+    directory_id = models.CharField(max_length=255)
+    uid = models.CharField(max_length=128)
+    credential_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
