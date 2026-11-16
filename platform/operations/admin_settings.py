@@ -203,7 +203,7 @@ def grants(request):
 @api_view(['GET'])
 def history(request):
     require_admin(request.user)
-    qs=AuditEvent.objects.filter(Q(action__startswith='settings.')|Q(action__startswith='permissions.')).order_by('-created_at','-id')
+    qs=AuditEvent.objects.filter(Q(action__startswith='settings.')|Q(action__startswith='permissions.')|Q(action__startswith='content.')).order_by('-created_at','-id')
     return paginate(request,qs,lambda e:{'id':e.id,'actor':e.actor_id,'action':e.action,'data':e.data,'created_at':e.created_at.isoformat()})
 
 
