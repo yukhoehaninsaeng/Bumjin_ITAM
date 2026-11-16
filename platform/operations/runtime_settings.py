@@ -36,7 +36,7 @@ def override(group,key,default):
     item=row(group)
     if not item:return default
     if key in item.values:return item.values[key]
-    if key.endswith('PASSWORD'):return decrypt(item.secrets).get(key,default)
+    if key.endswith('PASSWORD') or key in item.values.get('_secret_keys',[]):return decrypt(item.secrets).get(key,default)
     return default
 
 
@@ -45,3 +45,4 @@ def display_timezone():
     try:ZoneInfo(name)
     except (ZoneInfoNotFoundError,ValueError):return 'Asia/Seoul'
     return name
+
