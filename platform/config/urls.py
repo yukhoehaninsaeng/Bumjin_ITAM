@@ -1,7 +1,14 @@
 from django.urls import path
-from operations import api, views, admin_settings, directory_api, password_recovery
+from operations import api, views, admin_settings, directory_api, password_recovery, portal_content
 
 urlpatterns = [
+    path("api/v1/admin/content/articles", portal_content.articles, {"admin": True}),
+    path("api/v1/admin/content/articles/<uuid:article_id>", portal_content.article_detail, {"admin": True}),
+    path("api/v1/admin/content/articles/<uuid:article_id>/images", portal_content.upload_image),
+    path("api/v1/admin/content/images/<uuid:image_id>", portal_content.image_file, {"admin": True}),
+    path("api/v1/portal/content/articles", portal_content.articles),
+    path("api/v1/portal/content/articles/<uuid:article_id>", portal_content.article_detail),
+    path("api/v1/portal/content/images/<uuid:image_id>", portal_content.image_file),
     path("password-recovery", password_recovery.page),
     path("password-recovery/submit", password_recovery.submit),
     path("api/v1/admin/directory/accounts", directory_api.accounts),
@@ -67,8 +74,10 @@ for route in [
     "portal/requests",
     "portal/assets",
     "portal/account",
+    "portal/knowledge",
 ]:
     urlpatterns.append(path(route, views.workspace))
+
 
 
 
