@@ -395,21 +395,21 @@ a {
     overflow-wrap: anywhere;
     line-height: 1.6;
   }
-  .tablewrap {
+  .ticketTable {
     overflow: visible;
     border: 0;
     background: transparent;
   }
-  table,
-  tbody {
+  .ticketTable table,
+  .ticketTable tbody {
     display: block;
     width: 100%;
     white-space: normal;
   }
-  thead {
+  .ticketTable thead {
     display: none;
   }
-  tbody tr[data-id] {
+  .ticketTable tbody tr[data-id] {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 12px;
@@ -419,25 +419,25 @@ a {
     padding: 12px;
     margin-bottom: 10px;
   }
-  tbody td {
+  .ticketTable tbody td {
     display: block;
     min-width: 0;
     padding: 8px 0;
     border: 0;
     overflow-wrap: anywhere;
   }
-  tbody td::before {
+  .ticketTable tbody td::before {
     content: attr(data-label);
     display: block;
     color: #66788a;
     font-size: 11px;
     margin-bottom: 5px;
   }
-  tbody td:first-child {
+  .ticketTable tbody td:first-child {
     grid-column: 1/-1;
     font-size: 17px;
   }
-  tbody td[colspan] {
+  .ticketTable tbody td[colspan] {
     display: block;
     padding: 18px;
     background: white;
@@ -799,16 +799,16 @@ input::placeholder {
   .filterPanel > .toolbar select {
     flex-basis: 120px;
   }
-  tbody tr[data-id] {
+  .ticketTable tbody tr[data-id] {
     border-left: 4px solid #cbdcf7;
     box-shadow: 0 2px 8px #18395506;
   }
-  tbody td:first-child {
+  .ticketTable tbody td:first-child {
     padding-bottom: 12px;
     margin-bottom: 4px;
     border-bottom: 1px solid #e7edf5;
   }
-  tbody td:first-child b {
+  .ticketTable tbody td:first-child b {
     font-size: 18px;
   }
 }
@@ -1260,7 +1260,7 @@ textarea {
   .filterPanel {
     padding: 14px;
   }
-  tbody tr[data-id] {
+  .ticketTable tbody tr[data-id] {
     border-left-color: rgba(201, 35, 40, 0.25);
   }
 }
@@ -3848,3 +3848,68 @@ body:not(.loginBody) {font-family:"Noto Sans KR",system-ui,sans-serif;color:#242
 .directoryControls>label:first-child {flex:0 0 135px;max-width:135px}
 .directoryControls>label:nth-child(2) {flex:1;max-width:560px}
 @media(max-width:800px){.directoryControls>label:first-child{min-width:120px}.directoryControls>label:nth-child(2){max-width:none}.directoryTable{min-width:740px}}
+
+/* Responsive boundaries: tables scroll locally; only labelled tickets become cards. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+#workspace, #workspace > *, .tablewrap { min-width: 0; }
+.tablewrap { max-width: 100%; overflow-x: auto; }
+.directoryTable td small { display: block; white-space: normal; max-width: 24rem; }
+@media screen and (max-width: 800px) {
+  .workspaceHeader { padding: 0 12px; gap: 8px; flex-wrap: nowrap; }
+  .workspaceHeader .menuToggle { flex: 0 0 44px; padding: 8px; }
+  .workspaceHeader .globalBrand { flex: 1 1 auto; gap: 8px; white-space: nowrap; }
+  .workspaceHeader .globalBrand b { font-size: 17px; }
+  .workspaceHeader .globalBrand strong { font-size: 12px; }
+  .workspaceHeader .headerMeta { flex: 0 0 auto; margin-left: 0; }
+  .workspaceHeader .headerMeta button { padding: 8px; font-size: 12px; }
+  .appSidebar { top: 64px; overflow-y: auto; }
+  .appSidebar .navItem { height: auto; min-height: 44px; }
+  #workspace { width: 100%; }
+  .heading, .assetListHeading { min-width: 0; }
+  .heading h1, .assetListHeading h1 { overflow-wrap: anywhere; }
+  .assetListHeading { flex-direction: column; gap: 8px; }
+  .assetHeadingActions { width: 100%; flex-wrap: wrap; padding-top: 0; }
+  .assetListPage button, .assetListPage .assetExportLink { min-height: 44px; height: auto; }
+  .assetTypeTabs { height: auto; min-height: 44px; overflow-x: auto; gap: 22px; }
+  .assetTypeTabs a { flex-shrink: 0; white-space: nowrap; }
+  .figmaAssetFilters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .figmaAssetFilters label { min-width: 0; }
+  .figmaAssetFilters input, .figmaAssetFilters select,
+  .directoryControls input, .directoryControls select { font-size: 16px; min-height: 44px; width: 100%; }
+  .assetListTools, .assetListTools > div, .assetListPagination,
+  .assetListPagination > div { flex-wrap: wrap; gap: 8px; }
+  .directoryControls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .directoryControls > label:first-child, .directoryControls > label:nth-child(2),
+  .directoryControls > label:last-child { width: auto; min-width: 0; max-width: none; }
+  .directoryControls > label:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .directoryPanelHead, .directorySelectionHead { flex-wrap: wrap; padding: 14px; }
+  .directoryPanelHead button, .directoryNode { min-height: 44px; }
+  .directoryNode { flex: 1 1 auto; min-width: 0; }
+  .directoryChildren { margin-left: 4px; padding-left: 8px; }
+  .assetHistoryItem { flex-wrap: wrap; }
+  .assetBreadcrumb { flex-wrap: wrap; }
+  dialog { padding: 18px 14px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+  dialog input, dialog select, dialog textarea { font-size: 16px; }
+  .modalHead { align-items: flex-start; gap: 8px; }
+  .modalHead h2 { min-width: 0; }
+  .modalHead button { flex-shrink: 0; }
+}
+@media screen and (max-width: 650px) {
+  .tablewrap:not(.ticketTable) { overflow: auto; border: 1px solid var(--edge); background: #fff; }
+  .tablewrap:not(.ticketTable) table { display: table; width: 100%; min-width: 680px; white-space: nowrap; }
+  .tablewrap:not(.ticketTable) thead { display: table-header-group; }
+  .tablewrap:not(.ticketTable) tbody { display: table-row-group; }
+  .tablewrap:not(.ticketTable) tr { display: table-row; }
+  .tablewrap:not(.ticketTable) td { display: table-cell; }
+  .tablewrap:not(.ticketTable) td::before { display: none; }
+  .tablewrap.figmaAssetTable table { min-width: 950px; }
+  .tablewrap .directoryTable { min-width: 740px; }
+  .ticketTable { overflow: visible; }
+  .ticketTable td { white-space: normal; }
+}
+@media screen and (max-width: 380px) {
+  .workspaceHeader .globalBrand strong, .workspaceHeader .globalBrand > span { display: none; }
+  .figmaAssetFilters { grid-template-columns: minmax(0, 1fr); }
+  .figmaAssetFilters label:first-child { grid-column: auto; }
+  .assetHeadingActions > * { flex: 1 1 auto; text-align: center; }
+}
