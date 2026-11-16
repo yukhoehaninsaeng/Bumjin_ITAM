@@ -3913,3 +3913,68 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .figmaAssetFilters label:first-child { grid-column: auto; }
   .assetHeadingActions > * { flex: 1 1 auto; text-align: center; }
 }
+
+/* Phone layouts based on 393px device screenshots. */
+.assetSelectAll { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.assetSelectAll input { width: 18px; height: 18px; min-height: 0; margin: 0; flex-shrink: 0; }
+@media screen and (max-width: 800px) {
+  .workspaceHeader .globalBrand b,
+  .workspaceHeader .globalBrand strong { flex: 0 0 auto; white-space: nowrap; word-break: keep-all; overflow-wrap: normal; }
+  .workspaceHeader .globalBrand > span { flex: 0 0 1px; }
+  .directoryControls > label { min-width: 0; }
+  .directoryControls > label:nth-child(2) { width: 100%; }
+  .directoryControls input { display: block; min-width: 0; }
+  .assetListTools > div { min-width: 0; }
+  .assetSelectAll { flex-basis: 100%; }
+  .assetInfoPanel { padding: 16px 14px; }
+  .assetSpecRow { grid-template-columns: minmax(80px, 30%) minmax(0, 1fr); padding: 10px 0; gap: 12px; font-size: 14px; }
+  .assetSpecRow > *, .assetSoftwareRow > * { min-width: 0; }
+  .assetSoftwareRow { padding: 10px 0; font-size: 14px; }
+  .assetOwnerBody .ownerMeta { overflow-wrap: anywhere; }
+}
+@media screen and (max-width: 650px) {
+  /* Override desktop/table-scroll rules only for explicitly labelled card tables. */
+  #workspace .tablewrap.mobileCards { overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  #workspace .mobileCards table, #workspace .mobileCards tbody {
+    display: block; width: 100%; min-width: 0; max-width: 100%; white-space: normal;
+  }
+  #workspace .mobileCards thead { display: none; }
+  #workspace .mobileCards tbody tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px;
+    position: relative; padding: 16px; margin-bottom: 12px;
+    border: 1px solid var(--edge); border-radius: 8px; background: #fff;
+  }
+  #workspace .mobileCards tbody td {
+    display: flex; flex-direction: column; gap: 4px; height: auto; min-width: 0;
+    padding: 0; margin: 0; border: 0; grid-column: auto; font-size: 14px; line-height: 1.6;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  #workspace .mobileCards td::before {
+    display: block; content: attr(data-label); margin: 0;
+    font-size: 12px; line-height: 1.4; color: #606773; font-weight: 400;
+  }
+  #workspace .mobileCards td a, #workspace .mobileCards td b { font-size: inherit; }
+  #workspace .mobileCards td[data-label="관리번호"] {
+    grid-column: 1 / -1; padding-right: 44px; font-size: 17px; font-weight: 700;
+  }
+  #workspace .mobileCards td[data-label="선택"] {
+    position: absolute; right: 6px; top: 6px; width: 44px; height: 44px; align-items: center; justify-content: center;
+  }
+  #workspace .mobileCards td[data-label="선택"]::before { display: none; }
+  #workspace .mobileCards .assetSelect { width: 24px; height: 24px; min-height: 24px; }
+  #workspace .mobileCards td[data-label="사업부 / 부서"],
+  #workspace .mobileCards td[data-label="장비 / 모델"],
+  #workspace .mobileCards td[data-label="소속 부서"],
+  #workspace .mobileCards td[data-label="이메일"],
+  #workspace .mobileCards td[data-label="LDAP 부서"],
+  #workspace .mobileCards td[data-label="업체 · 서비스"],
+  #workspace .mobileCards td[data-label="관리"],
+  #workspace .mobileCards td[colspan] { grid-column: 1 / -1; }
+  #workspace .mobileCards td[colspan]::before { display: none; }
+  #workspace .mobileCards td[data-label="관리"] button { width: 100%; min-height: 44px; }
+  #workspace .mobileCards .assetStatus { align-self: flex-start; }
+  .assetListPage h1, .heading h1 { font-size: 24px; line-height: 1.4; }
+  .assetListPage p, .heading p { line-height: 1.65; word-break: keep-all; overflow-wrap: anywhere; }
+  .directoryPeoplePanel { background: #f8f9fb; }
+  .directoryPeoplePanel .mobileCards { padding: 0 12px 4px; }
+}
