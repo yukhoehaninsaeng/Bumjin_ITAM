@@ -22,9 +22,11 @@ LDAP_FIELDS={
  'LDAP_HOST':'host','LDAP_PORT':'port','LDAP_BASE_DN':'text','LDAP_BIND_DN':'text','LDAP_BIND_PASSWORD':'secret',
  'LDAP_CA_FILE':'text','LDAP_DIRECTORY_SOURCE':'text','LDAP_ID_ATTRIBUTE':'attribute','LDAP_USER_FILTER':'text',
  'LDAP_DEPARTMENT_ATTRIBUTE':'attribute','LDAP_DEPARTMENT_WRITE_ENABLED':'bool'}
-SCHEMAS={'mail':MAIL_FIELDS,'ldap':LDAP_FIELDS,'system':{'TIME_ZONE':'timezone'}}
+ACCESS_FIELDS={'VPN_WRITE_ENABLED':'bool','PASSWORD_WRITE_ENABLED':'bool','LDAP_GROUPS_DN':'text','GROUP_MEMBER_ATTRIBUTE':'attribute',
+ 'VPN_GROUPS':'text','GW_VPN_GROUP':'text','GW_URL':'text','GW_USERNAME':'text','GW_PASSWORD':'secret','GW_COOKIE':'secret','GW_CA_FILE':'text','VPN_INTERNAL_URL':'text','VPN_EXTERNAL_URL':'text'}
+SCHEMAS={'mail':MAIL_FIELDS,'ldap':LDAP_FIELDS,'system':{'TIME_ZONE':'timezone'},'access':ACCESS_FIELDS}
 DEFAULTS={'mail':{'ENABLED':'0','SMTP_PORT':'587','SMTP_USE_TLS':'1','SMTP_USE_SSL':'0','INBOUND_ENABLED':'0','IMAP_PORT':'993','IMAP_FOLDER':'INBOX'},
- 'ldap':{'LDAP_PORT':'636','LDAP_DIRECTORY_SOURCE':'synology','LDAP_ID_ATTRIBUTE':'entryUUID','LDAP_USER_FILTER':'(objectClass=posixAccount)','LDAP_DEPARTMENT_WRITE_ENABLED':'0'},'system':{'TIME_ZONE':'Asia/Seoul'}}
+ 'ldap':{'LDAP_PORT':'636','LDAP_DIRECTORY_SOURCE':'synology','LDAP_ID_ATTRIBUTE':'entryUUID','LDAP_USER_FILTER':'(objectClass=posixAccount)','LDAP_DEPARTMENT_WRITE_ENABLED':'0'},'system':{'TIME_ZONE':'Asia/Seoul'},'access':{'VPN_WRITE_ENABLED':'0','PASSWORD_WRITE_ENABLED':'0','GROUP_MEMBER_ATTRIBUTE':'member','VPN_GROUPS':'00. VPN_User_Always|01. VPN_User_Period','GW_VPN_GROUP':'01. VPN_User_Period'}}
 
 
 def require_admin(user):
@@ -36,15 +38,16 @@ def public_group(group):
     from .runtime_settings import row
     from .ticket_mail import config as mail_config
     from .ldap_department import config as ldap_config
+    from .directory_access import config as access_config
     item=row(group);result={};configured={}
     for key,kind in SCHEMAS[group].items():
         if kind=='secret':
             # Presence only; no decryption and no plaintext in API responses.
-            legacy=getattr(settings,'ITAM_MAIL' if group=='mail' else 'ITAM_LDAP',{})
+            legacy=getattr(settings,{'mail':'ITAM_MAIL','ldap':'ITAM_LDAP','access':'ITAM_ACCESS'}[group],{})
             import os
-            configured[key]=bool(item and key in item.values.get('_secret_keys',[])) or bool(legacy.get(key) or os.environ.get(('ITAM_MAIL_' if group=='mail' else '')+key))
+            configured[key]=bool(item and key in item.values.get('_secret_keys',[])) or bool(legacy.get(key) or os.environ.get({'mail':'ITAM_MAIL_','ldap':'','access':'ITAM_ACCESS_'}[group]+key))
         elif group=='system':result[key]=display_timezone()
-        else:result[key]=(mail_config if group=='mail' else ldap_config)(key,DEFAULTS[group].get(key,''))
+        else:result[key]={'mail':mail_config,'ldap':ldap_config,'access':access_config}[group](key,DEFAULTS[group].get(key,''))
     return {'values':result,'secret_configured':configured,'version':item.version if item else 0}
 
 
@@ -71,11 +74,11 @@ def validate(group,values):
         if kind=='timezone':
             try:ZoneInfo(value)
             except (ZoneInfoNotFoundError,ValueError):raise ValidationError('IANA 시간대를 선택하세요.')
-        if key=='PUBLIC_BASE_URL' and value:
+        if key in ('PUBLIC_BASE_URL','GW_URL','VPN_INTERNAL_URL','VPN_EXTERNAL_URL') and value:
             from urllib.parse import urlsplit
             try:url=urlsplit(value)
             except ValueError:raise ValidationError('프로그램 접속 주소를 확인하세요.')
-            if url.scheme not in ('https','http') or not url.hostname or url.username or url.password or url.path not in ('','/') or url.query or url.fragment:raise ValidationError('프로그램의 http/https 기본 주소를 입력하세요.')
+            if url.scheme not in ('https','http') or not url.hostname or url.username or url.password or (url.path not in ('','/') if key in ('PUBLIC_BASE_URL','GW_URL') else False) or url.query or url.fragment:raise ValidationError('프로그램의 http/https 기본 주소를 입력하세요.')
             value=value.rstrip('/')
         cleaned[key]=value
     return cleaned
@@ -210,3 +213,4 @@ def paginate(request,qs,render):
         size=min(100,max(1,int(request.query_params.get('page_size',30))))
     except (ValueError,TypeError):raise ValidationError('페이지 값을 확인하세요.')
     return Response({'data':[render(e) for e in qs[(page-1)*size:page*size]],'meta':{'page':page,'page_size':size,'total':qs.count()}})
+
