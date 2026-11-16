@@ -1,0 +1,21 @@
+# Copy into LOCAL platform/config/settings.py; never commit actual credentials.
+ITAM_MAIL = {
+    'ENABLED': '0',
+    'PUBLIC_BASE_URL': 'https://itam.example.com',
+    'FROM_EMAIL': 'it-help@example.com',
+    'REPLY_ADDRESS': 'it-help@example.com',
+    'SMTP_HOST': 'smtp.example.com',
+    'SMTP_PORT': '587',
+    'SMTP_USER': 'it-help@example.com',
+    'SMTP_PASSWORD': '',
+    'SMTP_USE_TLS': '1',
+    'SMTP_USE_SSL': '0',
+    'INBOUND_ENABLED': '0',
+    'IMAP_HOST': 'imap.example.com',
+    'IMAP_PORT': '993',
+    'IMAP_USER': 'it-help@example.com',
+    'IMAP_PASSWORD': '',
+    'IMAP_FOLDER': 'INBOX',
+    'IMAP_CA_FILE': '',
+    'AUTH_SERV_ID': '',
+}
