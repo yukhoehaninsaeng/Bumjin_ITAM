@@ -317,27 +317,9 @@ def message(request, ticket_id, portal=False):
     payload = parse(
         serializers.MessageCreate if portal else serializers.AdminMessageCreate, request.data
     )
-    with transaction.atomic():
-        ticket = get_object_or_404(
-            policies.tickets_visible(request.user, portal=portal).select_for_update(of=("self",)),
-            pk=ticket_id,
-        )
-        TicketMessage.objects.create(
-            ticket=ticket,
-            author=request.user,
-            body=payload["body"],
-            internal=payload.get("internal", False),
-        )
-        # Do not reveal internal-note events in the employee response.
-        AuditEvent.objects.create(
-            actor=request.user,
-            company=ticket.company,
-            ticket=ticket,
-            action="ticket.message_added",
-            data={"internal": payload.get("internal", False)},
-        )
-        ticket.version += 1
-        ticket.save()
+    item = services.add_ticket_message(request.user, ticket_id, payload["body"],
+        portal=portal, internal=payload.get("internal", False))
+    ticket = item.ticket
     return Response({"data": ticket_json(ticket, detail=True, portal=portal)}, status=201)
 
 
@@ -762,3 +744,4 @@ def employee_department(request, employee_id):
     employee, state = sync_employee(employee.id, request.user)
     return Response({"data": {"id": str(employee.id), "version": employee.version,
                              "ldap_department": state}}, status=200)
+
