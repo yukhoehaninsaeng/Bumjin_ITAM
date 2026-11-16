@@ -193,9 +193,11 @@ def apply_groupware(plan):
 
 
 @transaction.atomic
-def link_ldap_entries(entries, source='synology', apply=False):
+def link_ldap_entries(entries, source='synology', apply=False, sync_email=False):
     """Read-only LDAP result mapping. Does not change groupware organization or employment status."""
-    User=get_user_model();seen=set();identities=set();report={'matched':0,'unmapped':0,'retired':0,'linked':0}
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+    User=get_user_model();seen=set();identities=set();report={'matched':0,'unmapped':0,'retired':0,'linked':0,'email_updates':0,'email_missing':0}
     for entry in entries:
         account=text(entry.get('uid'));identity=text(entry.get('id'))
         if not account or not identity or account in seen or identity in identities:
@@ -209,6 +211,13 @@ def link_ldap_entries(entries, source='synology', apply=False):
             raise ValueError('LDAP 고유 ID가 변경되었습니다. 계정 재생성 여부를 확인하세요: '+account)
         if Employee.objects.filter(directory_source=source,directory_id=identity).exclude(pk=employee.pk).exists():
             raise ValueError('LDAP 고유 ID가 다른 직원에게 연결되어 있습니다.')
+        address=text(entry.get('mail')) if sync_email else ''
+        if address:
+            try:validate_email(address)
+            except ValidationError:raise ValueError('LDAP mail 주소 형식 오류: '+account)
+        if sync_email:
+            report['email_updates']+=bool(address and employee.email!=address.lower())
+            report['email_missing']+=not bool(address)
         if not apply:continue
         user=employee.user if employee.user_id else None
         if user is None:
@@ -217,7 +226,9 @@ def link_ldap_entries(entries, source='synology', apply=False):
             user=User(username=account,is_active=True);user.set_unusable_password();user.save();employee.user=user
         if user.username != account:
             raise ValueError('기존 로그인 아이디가 그룹웨어 아이디와 다릅니다: '+account)
+        if address:employee.email=address.lower()
         employee.directory_source=source;employee.directory_uid=account;employee.directory_id=identity
         employee.version+=1;employee.save()
         report['linked']+=1
     return report
+
