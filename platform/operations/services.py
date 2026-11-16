@@ -19,6 +19,7 @@ from .models import (
     TicketSequence,
     UploadDraft,
 )
+from .ticket_mail import enqueue
 from .policies import OPEN_STATES, assets_visible, company_scope, employee_for, tickets_visible
 
 
@@ -134,6 +135,7 @@ def create_ticket(user, payload, key, *, portal):
         actor=user, company=ticket.company, ticket=ticket, action="ticket.created"
     )
     IdempotencyRecord.objects.create(user=user, key=key, payload_hash=digest, ticket=ticket)
+    enqueue(ticket, "created", user)
     return ticket, True
 
 
@@ -161,6 +163,7 @@ def claim_ticket(user, ticket_id, version):
         action="ticket.claimed",
         data={"assignee": user.pk},
     )
+    enqueue(ticket, "assigned", user)
     return ticket
 
 
@@ -217,6 +220,7 @@ def transition_ticket(user, ticket_id, version, status, reason, *, portal):
         action="ticket.transitioned",
         data={"before": before, "after": status},
     )
+    enqueue(ticket, "status", user)
     return ticket
 
 
@@ -516,3 +520,18 @@ def update_maintenance_contract(user, contract_id, payload):
         data={"contract_id": str(contract.id), "before": before, "after": after},
     )
     return contract
+
+
+
+@transaction.atomic
+def add_ticket_message(user, ticket_id, body, *, portal=False, internal=False, source="web"):
+    ticket = tickets_visible(user, portal=portal).select_for_update(of=("self",)).filter(pk=ticket_id).first()
+    if not ticket:raise NotFound()
+    if portal and internal:raise PermissionDenied("직원은 내부 메모를 작성할 수 없습니다.")
+    item = TicketMessage.objects.create(ticket=ticket, author=user, body=body, internal=internal)
+    AuditEvent.objects.create(actor=user, company=ticket.company, ticket=ticket,
+        action="ticket.message_added", data={"internal": internal, "source": source})
+    ticket.version += 1
+    ticket.save()
+    if not internal:enqueue(ticket, "reply", user)
+    return item

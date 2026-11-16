@@ -345,3 +345,29 @@ class LoginAttempt(models.Model):
     count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField()
 
+
+
+
+class TicketMail(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT)
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    address = models.EmailField()
+    portal = models.BooleanField(default=True)
+    kind = models.CharField(max_length=24)
+    state = models.CharField(max_length=16, default='pending')
+    attempts = models.PositiveIntegerField(default=0)
+    available_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    message_id = models.CharField(max_length=255, unique=True)
+    class Meta:
+        indexes = [models.Index(fields=['state','available_at'], name='ticket_mail_pending')]
+
+
+class InboundTicketMail(models.Model):
+    key = models.CharField(max_length=64, primary_key=True)
+    received_at = models.DateTimeField(default=timezone.now)
+    outcome = models.CharField(max_length=32)
+    message = models.OneToOneField(TicketMessage, null=True, blank=True, on_delete=models.PROTECT)
