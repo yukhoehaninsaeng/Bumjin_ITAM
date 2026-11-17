@@ -608,9 +608,11 @@
     drawTree();drawPeople();
   }
   async function portalHome() {
-    const [ticketResult, assetResult] = await Promise.all([
+    const [ticketResult, assetResult, noticeResult, helpResult] = await Promise.all([
       call("/portal/tickets"),
       call("/portal/assets"),
+      call("/portal/content/articles?kind=NOTICE&page_size=5"),
+      call("/portal/content/articles?kind=HELP&page_size=6"),
     ]);
     main.innerHTML =
       heading(
@@ -618,6 +620,7 @@
         "오류 화면을 붙여넣어 지원을 요청하면 담당자가 확인합니다.",
         "<button data-new-ticket>＋ 지원 요청</button>",
       ) +
+      portalBoardHome(noticeResult,helpResult) +
       `<div class="cards"><div class="card"><span>내 자산</span><strong>${assetResult.meta.total}</strong></div><div class="card"><span>내 요청</span><strong>${ticketResult.meta.total}</strong></div></div><h2>내 요청</h2>${rows(ticketResult.data.slice(0, 6))}<h2 class="sectionGap">내 자산</h2><div class="userDirectory">${
         assetResult.data
           .slice(0, 6)
@@ -646,6 +649,8 @@
     }
   }
   function closeDialog(force = false) {
+    const boardForm=dialog.querySelector('#boardEditor');
+    if(!force&&boardForm?.dataset.dirty==='true'&&!confirm('저장하지 않은 게시글 변경사항을 닫을까요?'))return;
     const form = dialog.querySelector("#ticketForm");
     if (
       !force &&
@@ -656,10 +661,13 @@
     dialog.close();
   }
   dialog.addEventListener("input", () => {
+    const boardForm=dialog.querySelector('#boardEditor');if(boardForm)boardForm.dataset.dirty='true';
     const form = dialog.querySelector("#ticketForm");
     if (form) form.dataset.dirty = "true";
   });
   dialog.addEventListener("cancel", (e) => {
+    const boardForm=dialog.querySelector('#boardEditor');
+    if(boardForm?.dataset.dirty==='true'&&!confirm('저장하지 않은 게시글 변경사항을 닫을까요?')){e.preventDefault();return;}
     if (
       dialog.querySelector("#ticketForm")?.dataset.dirty === "true" &&
       !confirm("작성 중인 요청을 닫을까요?")
@@ -952,8 +960,8 @@
     }
   });
   async function adminSettings() {
-    const [mailResult, ldapResult, systemResult, grantResult] = await Promise.all([
-      call('/admin/settings/mail'), call('/admin/settings/ldap'), call('/admin/settings/system'), call('/admin/settings/grants')
+    const [mailResult, ldapResult, systemResult, grantResult, accessResult] = await Promise.all([
+      call('/admin/settings/mail'), call('/admin/settings/ldap'), call('/admin/settings/system'), call('/admin/settings/grants'), call('/admin/settings/access')
     ]);
     const labels = {
       ENABLED:'메일 알림 사용',PUBLIC_BASE_URL:'프로그램 접속 주소',FROM_EMAIL:'보내는 이메일',REPLY_ADDRESS:'답장 수신 이메일',
@@ -961,22 +969,23 @@
       INBOUND_ENABLED:'메일 답장 자동 등록',IMAP_HOST:'IMAP 호스트',IMAP_PORT:'IMAP 포트',IMAP_USER:'IMAP 계정',IMAP_PASSWORD:'IMAP 비밀번호',IMAP_FOLDER:'수신 폴더',IMAP_CA_FILE:'IMAP CA 인증서 경로',AUTH_SERV_ID:'수신 인증 게이트웨이 ID',
       LDAP_HOST:'LDAP 호스트',LDAP_PORT:'LDAPS 포트',LDAP_BASE_DN:'Base DN',LDAP_BIND_DN:'연결 계정 Bind DN',LDAP_BIND_PASSWORD:'연결 비밀번호',LDAP_CA_FILE:'CA 인증서 경로',LDAP_DIRECTORY_SOURCE:'디렉터리 소스 이름',LDAP_ID_ATTRIBUTE:'사용자 고유 ID 속성',LDAP_USER_FILTER:'사용자 조회 필터',LDAP_DEPARTMENT_ATTRIBUTE:'NAS 부서 속성',LDAP_DEPARTMENT_WRITE_ENABLED:'NAS 부서 쓰기 사용'
     };
-    const booleans = new Set(['ENABLED','SMTP_USE_TLS','SMTP_USE_SSL','INBOUND_ENABLED','LDAP_DEPARTMENT_WRITE_ENABLED']);
+    Object.assign(labels,{VPN_WRITE_ENABLED:'VPN 그룹 쓰기 사용',PASSWORD_WRITE_ENABLED:'NAS 비밀번호 변경 사용',PASSWORD_RECOVERY_ENABLED:'이메일 비밀번호 재설정 사용',LDAP_GROUPS_DN:'LDAP 그룹 Base DN',GROUP_MEMBER_ATTRIBUTE:'그룹 멤버 속성 (member 또는 memberUid)',VPN_GROUPS:'관리할 그룹 (|로 구분)',GW_VPN_GROUP:'그룹웨어 VPN 대상 그룹',GW_URL:'그룹웨어 HTTPS 주소',GW_USERNAME:'그룹웨어 연동 계정',GW_PASSWORD:'그룹웨어 비밀번호',GW_COOKIE:'그룹웨어 세션 쿠키 (선택)',GW_CA_FILE:'그룹웨어 CA 인증서 경로',VPN_INTERNAL_URL:'VPN 내부 안내 주소 (선택)',VPN_EXTERNAL_URL:'VPN 외부 안내 주소 (선택)'});
+    const booleans = new Set(['ENABLED','SMTP_USE_TLS','SMTP_USE_SSL','INBOUND_ENABLED','LDAP_DEPARTMENT_WRITE_ENABLED','VPN_WRITE_ENABLED','PASSWORD_WRITE_ENABLED','PASSWORD_RECOVERY_ENABLED']);
     function fields(group, result) {
       const d=result.data;
-      return Object.keys(labels).filter(k => group==='ldap' ? k.startsWith('LDAP_') : !k.startsWith('LDAP_')).map(k => {
-        const secret=k.endsWith('PASSWORD'), value=d.values[k] ?? '';
+      return Object.keys(labels).filter(k => Object.hasOwn(d.values,k)||Object.hasOwn(d.secret_configured,k)).map(k => {
+        const secret=k.endsWith('PASSWORD')||k==='GW_COOKIE', value=d.values[k] ?? '';
         return `<label>${esc(labels[k])}${booleans.has(k) ? `<select name="${k}"><option value="0" ${String(value)==='0'?'selected':''}>꺼짐</option><option value="1" ${String(value)==='1'?'selected':''}>켜짐</option></select>` : `<input name="${k}" type="${secret?'password':k.endsWith('PORT')?'number':'text'}" ${k.endsWith('PORT')?'min="1" max="65535"':''} value="${secret?'':esc(value)}" ${secret?'autocomplete="new-password"':''} placeholder="${secret?(d.secret_configured[k]?'저장됨 · 빈칸이면 유지':'새 비밀번호 입력'):''}">`}</label>`;
       }).join('');
     }
     const roleNames={system_admin:'시스템 관리자',asset_manager:'자산 관리자',support_agent:'티켓 담당자',organization_manager:'조직 관리자'};
     main.innerHTML = heading('관리자 설정', `로그 표시 시간대: ${me.time_zone}. 권한과 연결 설정 변경 이력을 기록합니다.`) + `
-      <nav class="settingsTabs" aria-label="설정 종류">${[['permissions','사용자 권한'],['mail','SMTP · 수신 메일'],['ldap','LDAP 연결'],['system','시간대'],['history','변경 이력']].map(([id,label])=>`<button class="secondary" data-settings-tab="${id}" aria-pressed="${id==='permissions'}">${label}</button>`).join('')}</nav>
+      <nav class="settingsTabs" aria-label="설정 종류">${[['permissions','사용자 권한'],['board','공지 · 도움말'],['mail','SMTP · 수신 메일'],['ldap','LDAP 연결'],['access','VPN · NAS'],['system','시간대'],['history','변경 이력']].map(([id,label])=>`<button class="secondary" data-settings-tab="${id}" aria-pressed="${id==='permissions'}">${label}</button>`).join('')}</nav>
       <section data-settings-panel="permissions" class="settingsPanel"><h2>LDAP 사용자 관리자 권한</h2><p>LDAP 연결을 완료한 재직자를 검색하고 역할·법인 범위를 지정하세요.</p><form id="settingsUserSearch" class="toolbar"><input name="q" aria-label="LDAP 사용자 검색" placeholder="이름 또는 LDAP 계정"><button type="submit">검색</button></form><div id="settingsAccounts"></div>
       <form id="grantForm"><h3 id="selectedAccount">사용자를 선택하세요</h3><input type="hidden" name="employee_id"><div class="grid"><label>역할<select name="role">${grantResult.data.roles.map(r=>`<option value="${r}">${esc(roleNames[r]||r)}</option>`).join('')}</select></label><label>권한 범위<select name="scope_type"><option value="COMPANY">선택 법인</option><option value="GLOBAL">전체 법인</option></select></label><label>법인<select name="company_id">${grantResult.data.companies.map(c=>`<option value="${c.id}">${esc(c.code)}</option>`).join('')}</select></label><label>지원팀 (티켓 담당자)<select name="team_id"><option value="">선택</option>${grantResult.data.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label></div><p class="muted">시스템 관리자는 전체 범위를 선택합니다. 티켓 담당자는 지원팀도 선택해야 합니다.</p><div class="formError" role="alert"></div><button type="submit">권한 부여</button></form></section>
-      ${[['mail','SMTP · 수신 메일',mailResult],['ldap','LDAP 연결',ldapResult]].map(([group,title,result])=>`<section data-settings-panel="${group}" class="settingsPanel" hidden><h2>${title}</h2><p>${group==='mail'?'발송은 SMTP, 메일 답장 등록은 IMAP 설정을 사용합니다. 수신 게이트웨이 인증 설정을 확인한 뒤 자동 등록을 켜세요.':'기존 LDAP 계정 연결·로그인·부서 반영에 같은 설정을 사용합니다. LDAPS 인증서를 검증합니다.'}</p>${!result.data.encryption_ready?'<div class="notice">비밀번호 저장 전에 서버 암호화 키를 설정해야 합니다. ADMIN_SETTINGS.md를 확인하세요.</div>':''}<form data-settings-form="${group}" data-version="${result.data.version}"><div class="grid">${fields(group,result)}</div><p class="muted">비밀번호 빈칸은 기존 값을 유지합니다. 연결 테스트는 저장한 값으로 인증만 확인합니다.</p><div class="formError" role="alert"></div><div class="actions"><button type="submit">설정 저장</button><button type="button" class="secondary" data-connection-test="${group}">저장한 연결 테스트</button></div></form><p data-test-result="${group}" role="status"></p></section>`).join('')}
+      ${[['mail','SMTP · 수신 메일',mailResult],['ldap','LDAP 연결',ldapResult],['access','VPN · NAS',accessResult]].map(([group,title,result])=>`<section data-settings-panel="${group}" class="settingsPanel" hidden><h2>${title}</h2><p>${group==='access'?'VPN 그룹과 비밀번호 쓰기는 기본 꺼짐입니다. LDAP 연결 테스트 후 테스트 계정으로 검증하세요. 그룹웨어 연동은 계정/비밀번호 또는 세션 쿠키를 사용합니다.':group==='mail'?'발송은 SMTP, 메일 답장 등록은 IMAP 설정을 사용합니다. 수신 게이트웨이 인증 설정을 확인한 뒤 자동 등록을 켜세요.':'기존 LDAP 계정 연결·로그인·부서 반영에 같은 설정을 사용합니다. LDAPS 인증서를 검증합니다.'}</p>${!result.data.encryption_ready?'<div class="notice">비밀번호 저장 전에 서버 암호화 키를 설정해야 합니다. ADMIN_SETTINGS.md를 확인하세요.</div>':''}<form data-settings-form="${group}" data-version="${result.data.version}"><div class="grid">${fields(group,result)}</div><p class="muted">비밀번호 빈칸은 기존 값을 유지합니다. 연결 테스트는 저장한 값으로 인증만 확인합니다.</p><div class="formError" role="alert"></div><div class="actions"><button type="submit">설정 저장</button>${group!=='access'?`<button type="button" class="secondary" data-connection-test="${group}">저장한 연결 테스트</button>`:''}</div></form><p data-test-result="${group}" role="status"></p></section>`).join('')}
       <section data-settings-panel="system" class="settingsPanel" hidden><h2>시간대 설정</h2><p>업무 처리 기록은 UTC로 저장하고 선택한 시간대로 표시합니다. 서버 시계는 운영체제의 NTP 설정을 사용합니다.</p><form data-settings-form="system" data-version="${systemResult.data.version}"><label>업무 표시 시간대<select name="TIME_ZONE">${systemResult.data.timezones.map(z=>`<option value="${esc(z)}" ${z===systemResult.data.values.TIME_ZONE?'selected':''}>${esc(z)}</option>`).join('')}</select></label><p>현재 시각: <b>${esc(date(new Date().toISOString()))}</b></p><div class="formError" role="alert"></div><button type="submit">시간대 저장</button></form></section>
-      <section data-settings-panel="history" class="settingsPanel" hidden><h2>설정 · 권한 변경 이력</h2><div id="settingsHistory"></div></section>`;
+      <section data-settings-panel="board" class="settingsPanel" hidden></section><section data-settings-panel="history" class="settingsPanel" hidden><h2>설정 · 권한 변경 이력</h2><div id="settingsHistory"></div></section>`;
     function tab(name) {
       main.querySelectorAll('[data-settings-panel]').forEach(p=>p.hidden=p.dataset.settingsPanel!==name);
       main.querySelectorAll('[data-settings-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.settingsTab===name)));
@@ -1026,7 +1035,89 @@
       target.innerHTML+=`<div class="page">${page>1?'<button class="secondary" data-history-prev>이전</button>':''}${page*result.meta.page_size<result.meta.total?'<button class="secondary" data-history-next>다음</button>':''}</div>`;
       const prev=target.querySelector('[data-history-prev]'),next=target.querySelector('[data-history-next]');if(prev)prev.onclick=()=>loadHistory(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>loadHistory(page+1).catch(e=>toast(e.message));
     }
-    await Promise.all([loadAccounts(),loadHistory()]);
+    await Promise.all([loadAccounts(),loadHistory(),setupBoardAdmin(grantResult.data.companies)]);
+  }
+
+  async function directoryManagement() {
+    const [leaseResult, approvalsResult, historyResult] = await Promise.all([call('/admin/directory/leases?page_size=30'),call('/admin/directory/approvals'),call('/admin/directory/history')]);
+    let leasePage=1,accountPage=1,accountQuery='',leaseQuery='',approvalPage=1,historyPage=1;
+    let leases=leaseResult.data,accounts=[],approvals=approvalsResult.data;
+    const groups=leaseResult.groups||[];
+    main.innerHTML=heading('VPN · NAS 계정','VPN 사용 기간과 NAS 비밀번호를 통합 관리합니다. 변경 이력은 서버 시각으로 기록합니다.')+
+      `<nav class="settingsTabs">${[['leases','VPN 권한'],['accounts','NAS 비밀번호 초기화'],['approvals','그룹웨어 VPN 결재'],['history','처리 이력']].map(([id,label])=>`<button class="secondary" data-directory-tab="${id}" aria-pressed="${id==='leases'}">${label}</button>`).join('')}</nav>
+      <div class="notice">${leaseResult.write_enabled?'VPN 쓰기 사용 중':'VPN 쓰기 꺼짐'} · <a href="/admin/settings">관리자 설정 → VPN·NAS</a>에서 연결·쓰기 설정을 확인하세요. 시작/만료 자동 처리는 별도 작업자가 실행되어야 합니다.</div>
+      <section class="settingsPanel" data-directory-panel="leases"><form id="vpnSearch" class="toolbar"><input name="q" placeholder="계정·이름·그룹 검색" aria-label="VPN 검색"><button>검색</button><button class="secondary" type="button" data-go-accounts>사용자 선택 후 권한 등록</button></form><div id="vpnLeases"></div></section>
+      <section class="settingsPanel" data-directory-panel="accounts" hidden><h2>연결된 LDAP 사용자</h2><form id="nasSearch" class="toolbar"><input name="q" placeholder="이름 또는 LDAP 계정" aria-label="NAS 계정 검색"><button>검색</button></form><div id="nasAccounts"></div></section>
+      <section class="settingsPanel" data-directory-panel="approvals" hidden><h2>그룹웨어 VPN 결재</h2><p>결재 완료 문서를 가져온 뒤 사용자와 기간을 확인하여 등록합니다. 이름만으로 자동 권한을 부여하지 않습니다.</p><button type="button" data-gw-fetch>최신 결재 가져오기</button><div id="vpnApprovals"></div></section>
+      <section class="settingsPanel" data-directory-panel="history" hidden><h2>VPN · 비밀번호 처리 이력</h2><div id="directoryHistory"></div></section>`;
+    const tab=name=>{main.querySelectorAll('[data-directory-panel]').forEach(p=>p.hidden=p.dataset.directoryPanel!==name);main.querySelectorAll('[data-directory-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.directoryTab===name)));};
+    main.querySelectorAll('[data-directory-tab]').forEach(b=>b.onclick=()=>tab(b.dataset.directoryTab));
+    main.querySelector('[data-go-accounts]').onclick=()=>tab('accounts');
+    function pagination(meta,name){return `<div class="page"><span>${meta.total}건 · ${meta.page}페이지</span>${meta.page>1?`<button class="secondary" type="button" data-${name}-prev>이전</button>`:''}${meta.page*meta.page_size<meta.total?`<button class="secondary" type="button" data-${name}-next>다음</button>`:''}</div>`;}
+    function nav(target,name,page,loader){const prev=target.querySelector(`[data-${name}-prev]`),next=target.querySelector(`[data-${name}-next]`);if(prev)prev.onclick=()=>loader(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>loader(page+1).catch(e=>toast(e.message));}
+    async function loadLeases(page=1,ready=null){const r=ready||await call('/admin/directory/leases?'+new URLSearchParams({page,q:leaseQuery,page_size:30}));leases=r.data;leasePage=page;const target=document.getElementById('vpnLeases');target.innerHTML=leases.map(l=>`<article class="directoryAccessCard"><div><b>${esc(l.name)} · ${esc(l.uid)}</b><span>${esc(l.group)}</span><span>${esc(l.starts_on)} ~ ${l.permanent?'상시':esc(l.expires_on)}</span><small>${esc(l.status)} · ${esc(l.sync_state)} ${esc(l.error_code)}</small><small>${esc(l.description)}</small></div><div class="directoryAccessActions"><button type="button" class="secondary" data-lease-edit="${l.id}">기간/계정 수정</button><button type="button" data-lease-apply="${l.id}">NAS 반영 / 재시도</button>${l.enabled?`<button type="button" class="secondary" data-lease-revoke="${l.id}">권한 해제</button>`:''}</div></article>`).join('')||'<p>등록된 VPN 권한이 없습니다.</p>';target.innerHTML+=pagination(r.meta,'lease');nav(target,'lease',page,loadLeases);}
+    async function loadAccounts(page=1){const r=await call('/admin/directory/accounts?'+new URLSearchParams({page,q:accountQuery,page_size:20}));accounts=r.data;accountPage=page;const target=document.getElementById('nasAccounts');target.innerHTML=accounts.map(e=>`<article class="directoryAccessCard"><div><b>${esc(e.name)} · ${esc(e.uid)}</b><span>${esc(e.company)} · ${esc(e.email||'메일 미등록')}</span></div><div class="directoryAccessActions"><button type="button" class="secondary" data-new-lease="${e.id}">VPN 권한 등록</button><button type="button" data-reset-nas="${e.id}">비밀번호 초기화</button></div></article>`).join('')||'<p>연결된 LDAP 사용자가 없습니다. 그룹웨어/LDAP 계정 동기화를 먼저 실행하세요.</p>';target.innerHTML+=pagination(r.meta,'account');nav(target,'account',page,loadAccounts);}
+    async function loadApprovals(page=1,ready=null){const r=ready||await call('/admin/directory/approvals?page='+page);approvals=r.data;approvalPage=page;const target=document.getElementById('vpnApprovals');target.innerHTML=r.data.map(a=>`<article class="directoryAccessCard"><div><b>${esc(a.number||a.id)} · ${esc(a.drafter)}</b><span>${esc(a.starts_on||'시작일 미확인')} ~ ${esc(a.expires_on||'종료일 미확인')}</span><small>${esc(a.status)} · ${esc(a.reason)}</small></div>${!['applied','legacy_processed'].includes(a.status)?`<div class="directoryAccessActions"><button data-review-approval="${esc(a.id)}">사용자 확인 후 등록</button><button class="secondary" data-exclude-approval="${esc(a.id)}">제외</button></div>`:''}</article>`).join('')||'<p>가져온 결재가 없습니다.</p>';target.innerHTML+=pagination(r.meta,'approval');nav(target,'approval',page,loadApprovals);}
+    async function loadHistory(page=1,ready=null){const r=ready||await call('/admin/directory/history?page='+page);historyPage=page;const target=document.getElementById('directoryHistory');target.innerHTML=r.data.map(e=>`<article class="settingsAudit"><time>${esc(date(e.created_at))}</time><b>${esc(e.action)}</b><span>변경자: ${esc(e.actor||'작업자/이관')}</span><small>${esc(JSON.stringify(e.data))}</small></article>`).join('')||'<p>처리 이력이 없습니다.</p>';target.innerHTML+=pagination(r.meta,'dirhistory');nav(target,'dirhistory',page,loadHistory);}
+    function userPicker(form,initial){const search=form.querySelector('[data-picker-search]'),button=form.querySelector('[data-picker-load]'),select=form.elements.employee_id;button.onclick=async()=>{try{const r=await call('/admin/directory/accounts?'+new URLSearchParams({q:search.value,page_size:100}));select.innerHTML=r.data.map(e=>`<option value="${e.id}">${esc(e.name)} · ${esc(e.uid)}</option>`).join('');if(initial&&r.data.some(e=>e.id===initial.id))select.value=initial.id;if(r.meta.total>100)toast('검색어를 더 구체적으로 입력하세요.');}catch(e){toast(e.message);}};if(initial)select.innerHTML=`<option value="${initial.id}">${esc(initial.name)} · ${esc(initial.uid)}</option>`;}
+    const pickerMarkup=`<div class="toolbar"><input data-picker-search placeholder="이름/계정으로 사용자 검색" aria-label="사용자 검색"><button type="button" class="secondary" data-picker-load>사용자 검색</button></div><label>LDAP 사용자<select name="employee_id" required></select></label>`;
+    function leaseEditor(employee=null,lease=null){showDialog(lease?'VPN 권한 수정':'VPN 권한 등록',`<form id="vpnEditor">${pickerMarkup}<div class="grid"><label>그룹<select name="group">${groups.map(g=>`<option ${g===lease?.group?'selected':''}>${esc(g)}</option>`).join('')}</select></label><label>권한 종류<select name="permanent"><option value="0">기간 권한</option><option value="1" ${lease?.permanent?'selected':''}>상시 권한</option></select></label><label>시작일<input type="date" name="starts_on" required value="${esc(lease?.starts_on||'')}"></label><label>만료일<input type="date" name="expires_on" value="${esc(lease?.expires_on||'')}"></label><label>설명<input name="description" maxlength="500" value="${esc(lease?.description||'')}"></label></div><p class="muted">저장 후 NAS 반영을 실행하세요. 만료일 당일은 사용 가능하며 다음 날 해제됩니다.</p><div class="formError" role="alert"></div><button type="submit">권한 저장</button></form>`);const form=document.getElementById('vpnEditor');userPicker(form,employee||(lease?.employee_id?{id:lease.employee_id,name:lease.name,uid:lease.uid}:null));form.onsubmit=e=>{e.preventDefault();submit(form,async()=>{const payload=Object.fromEntries(new FormData(form));payload.permanent=payload.permanent==='1';if(lease)payload.expected_version=lease.version;await call('/admin/directory/leases',{method:'POST',body:payload});closeDialog();await loadLeases();tab('leases');await loadHistory();toast('권한을 저장했습니다. NAS 반영을 실행하세요.');});};}
+    main.onclick=async event=>{const button=event.target.closest('button');if(!button)return;try{
+      if(button.dataset.newLease)leaseEditor(accounts.find(e=>e.id===button.dataset.newLease));
+      else if(button.dataset.leaseEdit)leaseEditor(null,leases.find(l=>l.id===button.dataset.leaseEdit));
+      else if(button.dataset.leaseApply||button.dataset.leaseRevoke){const revoke=!!button.dataset.leaseRevoke;const lease=leases.find(l=>l.id===(button.dataset.leaseApply||button.dataset.leaseRevoke));if(!confirm(revoke?'이 VPN 그룹 권한을 해제할까요?':'저장한 기간에 맞춰 NAS VPN 그룹을 반영할까요?'))return;button.disabled=true;const r=await call(`/admin/directory/leases/${lease.id}/${revoke?'revoke':'apply'}`,{method:'POST',body:{expected_version:lease.version}});await loadLeases(leasePage);await loadHistory();toast(r.data.sync_state==='synced'?'NAS 반영 완료':'반영 실패. 설정/오류 코드를 확인하고 재시도하세요.');}
+      else if(button.dataset.resetNas){const employee=accounts.find(e=>e.id===button.dataset.resetNas);showDialog('NAS 비밀번호 초기화',`<form id="nasReset"><p>${esc(employee.name)} · ${esc(employee.uid)}</p><label>초기화 사유<input name="reason" required maxlength="500"></label><label>현재 관리자 비밀번호<input name="operator_password" type="password" required autocomplete="current-password"></label><p>임시 비밀번호는 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요.</p><div class="formError" role="alert"></div><button type="submit">비밀번호 초기화 실행</button></form>`);const form=document.getElementById('nasReset');form.onsubmit=e=>{e.preventDefault();submit(form,async()=>{const payload=Object.fromEntries(new FormData(form));const r=await call(`/admin/directory/accounts/${employee.id}/reset-password`,{method:'POST',body:payload});form.elements.operator_password.value='';showDialog('임시 비밀번호 · 한 번만 표시',`<p>${esc(r.data.uid)} · ${esc(r.data.message)}</p><label>임시 비밀번호<input id="temporaryNasPassword" type="password" readonly autocomplete="off"></label><button class="secondary" type="button" id="toggleTemporaryPassword">표시 / 숨김</button><button type="button" data-close>확인 후 닫기</button>`);const field=document.getElementById('temporaryNasPassword');field.value=r.data.temporary_password;document.getElementById('toggleTemporaryPassword').onclick=()=>field.type=field.type==='password'?'text':'password';await loadHistory();});};}
+      else if(button.hasAttribute('data-gw-fetch')){button.disabled=true;const r=await call('/admin/directory/approvals',{method:'POST',body:{action:'fetch'}});await loadApprovals();await loadHistory();toast(`결재 ${r.data.fetched}건 조회 · 신규 ${r.data.new}건`);}
+      else if(button.dataset.excludeApproval){const a=approvals.find(a=>a.id===button.dataset.excludeApproval);await call('/admin/directory/approvals',{method:'POST',body:{action:'exclude',document_id:a.id,expected_version:a.version}});await loadApprovals(approvalPage);await loadHistory();}
+      else if(button.dataset.reviewApproval){const a=approvals.find(a=>a.id===button.dataset.reviewApproval);showDialog('VPN 결재 사용자 확인',`<form id="vpnReview"><p>${esc(a.number)} · ${esc(a.drafter)}</p><p>${esc(a.starts_on)} ~ ${esc(a.expires_on)} · ${esc(a.reason)}</p>${pickerMarkup}<div class="formError" role="alert"></div><button type="submit">확인한 사용자로 VPN 권한 등록</button></form>`);const form=document.getElementById('vpnReview');userPicker(form,null);form.onsubmit=e=>{e.preventDefault();submit(form,async()=>{await call('/admin/directory/approvals',{method:'POST',body:{action:'approve',document_id:a.id,expected_version:a.version,employee_id:form.elements.employee_id.value}});closeDialog();await loadApprovals();await loadLeases();await loadHistory();toast('검토 결과를 저장했습니다. VPN 권한 탭에서 NAS에 반영하세요.');});};}
+    }catch(error){toast(error.message);}finally{if(button.isConnected)button.disabled=false;}};
+    document.getElementById('vpnSearch').onsubmit=e=>{e.preventDefault();leaseQuery=new FormData(e.target).get('q');loadLeases().catch(e=>toast(e.message));};document.getElementById('nasSearch').onsubmit=e=>{e.preventDefault();accountQuery=new FormData(e.target).get('q');loadAccounts().catch(e=>toast(e.message));};
+    await Promise.all([loadLeases(1,leaseResult),loadAccounts(),loadApprovals(1,approvalsResult),loadHistory(1,historyResult)]);
+  }
+
+  async function myDirectoryAccount(){const r=(await call('/portal/account')).data;main.innerHTML=heading('내 NAS 계정 · VPN','현재 비밀번호를 확인한 뒤 NAS 비밀번호를 변경할 수 있습니다.')+`<section class="settingsPanel"><h2>${esc(r.uid||'LDAP 미연결')}</h2>${(r.vpn_links||[]).map(link=>`<p><a href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.label)}</a></p>`).join('')}${r.leases.map(l=>`<article class="directoryAccessCard"><div><b>${esc(l.group)}</b><span>${esc(l.starts_on)} ~ ${l.permanent?'상시':esc(l.expires_on)}</span><small>${esc(l.status)} · ${esc(l.sync_state)}</small></div></article>`).join('')||'<p>등록된 VPN 사용 기간이 없습니다.</p>'}${r.linked&&r.password_enabled?`<form id="myNasPassword"><label>현재 비밀번호<input type="password" name="current_password" required autocomplete="current-password"></label><label>새 비밀번호 (12자 이상)<input type="password" name="new_password" required minlength="12" maxlength="128" autocomplete="new-password"></label><label>새 비밀번호 확인<input type="password" name="confirm_password" required autocomplete="new-password"></label><div class="formError" role="alert"></div><button type="submit">NAS 비밀번호 변경</button></form>`:'<div class="notice">LDAP 계정 연결과 비밀번호 쓰기 설정을 관리자에게 확인하세요.</div>'}</section>`;const form=document.getElementById('myNasPassword');if(form)form.onsubmit=e=>{e.preventDefault();submit(form,async()=>{const result=await call('/portal/account',{method:'POST',body:Object.fromEntries(new FormData(form))});form.reset();toast(result.data.message);});};}
+
+  function portalArticleMarkup(article) {
+    return `<article class="portalArticle"><div class="portalArticleMeta"><span>${article.kind==='NOTICE'?'공지':'도움말'}</span>${article.pinned?'<span>상단 고정</span>':''}<time>${esc(date(article.published_at||article.updated_at))}</time></div><h2>${esc(article.title)}</h2><div class="portalArticleBody">${esc(article.body)}</div><div class="portalArticleImages">${(article.images||[]).map(image=>`<figure><a href="${esc(image.url)}" target="_blank" rel="noopener noreferrer"><img src="${esc(image.url)}" alt="${esc(image.caption||article.title)}" loading="lazy"></a>${image.caption?`<figcaption>${esc(image.caption)}</figcaption>`:''}</figure>`).join('')}</div></article>`;
+  }
+  function portalBoardHome(notices, help) {
+    const section=(title,kind,result)=>`<section class="portalBoardPanel"><div class="portalBoardHeading"><h2>${title}</h2><a href="/portal/knowledge?kind=${kind}">전체 보기</a></div>${result.data.length?`<ul class="portalArticleLinks">${result.data.map(a=>`<li><a href="/portal/knowledge?article=${a.id}">${a.pinned?'<span class="boardPinned">고정</span>':''}<span>${esc(a.title)}</span><time>${esc(date(a.published_at||a.updated_at))}</time></a></li>`).join('')}</ul>`:`<p class="muted">${kind==='NOTICE'?'등록된 공지가 없습니다.':'등록된 도움말이 없습니다.'}</p>`}</section>`;
+    return `<div class="portalBoards">${section('공지사항','NOTICE',notices)}${section('자주 찾는 도움말','HELP',help)}</div>`;
+  }
+  async function knowledge() {
+    const articleId=params.get('article');
+    if(articleId){const article=(await call('/portal/content/articles/'+encodeURIComponent(articleId))).data;main.innerHTML=heading(article.kind==='NOTICE'?'공지사항':'도움말','직원 안내 및 문제 해결 방법')+`<p><a href="/portal/knowledge?kind=${article.kind}">← 목록으로</a></p>`+portalArticleMarkup(article);return;}
+    const kind=params.get('kind')==='HELP'?'HELP':'NOTICE',q=params.get('q')||'',page=Number(params.get('page')||1);
+    const r=await call('/portal/content/articles?'+new URLSearchParams({kind,q,page,page_size:20}));
+    main.innerHTML=heading('공지 · 자주 찾는 도움말','공지와 업무에 필요한 해결 방법을 찾아보세요.')+`<nav class="settingsTabs"><a href="?kind=NOTICE" ${kind==='NOTICE'?'aria-current="page"':''}>공지사항</a><a href="?kind=HELP" ${kind==='HELP'?'aria-current="page"':''}>자주 찾는 도움말</a></nav><form class="toolbar"><input type="hidden" name="kind" value="${kind}"><input name="q" value="${esc(q)}" placeholder="제목·내용 검색" aria-label="게시글 검색"><button>검색</button></form><div class="portalBoardPanel"><ul class="portalArticleLinks">${r.data.map(a=>`<li><a href="?article=${a.id}"><span>${a.pinned?'[고정] ':''}${esc(a.title)}<small>${esc(a.summary)}</small></span><time>${esc(date(a.published_at||a.updated_at))}</time></a></li>`).join('')||'<li>검색된 게시글이 없습니다.</li>'}</ul></div><div class="page"><span>${r.meta.total}건</span>${page>1?`<a href="?${new URLSearchParams({kind,q,page:page-1})}">이전</a>`:''}${page*r.meta.page_size<r.meta.total?`<a href="?${new URLSearchParams({kind,q,page:page+1})}">다음</a>`:''}</div>`;
+  }
+
+  async function setupBoardAdmin(companies) {
+    const panel=main.querySelector('[data-settings-panel="board"]');
+    panel.innerHTML=`<h2>공지 · 자주 찾는 도움말 게시글</h2><p>초안 작성 후 게시하면 해당 직원의 포털에 표시됩니다. 이미지는 최대 5장까지 넣을 수 있습니다.</p><div class="actions"><button type="button" data-new-article="NOTICE">공지 작성</button><button type="button" class="secondary" data-new-article="HELP">도움말 작성</button></div><form id="boardAdminSearch" class="toolbar"><input name="q" placeholder="게시글 검색" aria-label="관리 게시글 검색"><select name="kind" aria-label="게시글 종류"><option value="">전체 종류</option><option value="NOTICE">공지</option><option value="HELP">도움말</option></select><select name="status" aria-label="게시 상태"><option value="">전체 상태</option><option value="DRAFT">초안</option><option value="PUBLISHED">게시</option><option value="ARCHIVED">보관</option></select><button type="submit" class="secondary">검색</button></form><div id="boardAdminList"></div>`;
+    let query={},currentPage=1;
+    async function load(page=1){const r=await call('/admin/content/articles?'+new URLSearchParams({...query,page,page_size:20}));currentPage=page;const list=panel.querySelector('#boardAdminList');list.innerHTML=r.data.map(a=>`<article class="boardAdminRow"><div><b>${esc(a.title||'제목 없는 초안')}</b><span>${a.kind==='NOTICE'?'공지':'도움말'} · ${{DRAFT:'초안',PUBLISHED:'게시',ARCHIVED:'보관'}[a.status]} · ${esc(a.company)}${a.pinned?' · 상단 고정':''}</span><time>${esc(date(a.updated_at))}</time></div><div class="boardAdminActions"><button type="button" class="secondary" data-edit-article="${a.id}">수정</button><button type="button" class="secondary" data-preview-article="${a.id}">미리보기</button>${a.status!=='ARCHIVED'?`<button type="button" class="secondary" data-archive-article="${a.id}" data-version="${a.version}">보관</button>`:''}</div></article>`).join('')||'<p>등록된 게시글이 없습니다.</p>';list.innerHTML+=`<div class="page"><span>${r.meta.total}건 · ${page}페이지</span>${page>1?'<button class="secondary" type="button" data-board-prev>이전</button>':''}${page*r.meta.page_size<r.meta.total?'<button class="secondary" type="button" data-board-next>다음</button>':''}</div>`;const prev=list.querySelector('[data-board-prev]'),next=list.querySelector('[data-board-next]');if(prev)prev.onclick=()=>load(page-1).catch(e=>toast(e.message));if(next)next.onclick=()=>load(page+1).catch(e=>toast(e.message));}
+    panel.querySelector('#boardAdminSearch').onsubmit=event=>{event.preventDefault();query=Object.fromEntries(new FormData(event.target));load().catch(e=>toast(e.message));};
+    panel.onclick=async event=>{const button=event.target.closest('button');if(!button)return;try{
+      if(button.dataset.newArticle){button.disabled=true;const r=await call('/admin/content/articles',{method:'POST',body:{kind:button.dataset.newArticle}});await load();await editor(r.data);}
+      else if(button.dataset.editArticle){const r=await call('/admin/content/articles/'+button.dataset.editArticle);await editor(r.data);}
+      else if(button.dataset.previewArticle){const r=await call('/admin/content/articles/'+button.dataset.previewArticle);showDialog('게시글 미리보기',portalArticleMarkup(r.data));}
+      else if(button.dataset.archiveArticle){if(!confirm('직원 포털에서 이 글을 내리고 보관할까요?'))return;await call('/admin/content/articles/'+button.dataset.archiveArticle,{method:'DELETE',body:{expected_version:Number(button.dataset.version)}});await load(currentPage);toast('게시글을 보관했습니다.');}
+    }catch(error){toast(error.message);}finally{if(button.isConnected)button.disabled=false;}};
+    async function editor(article){
+      let images=article.images.map(i=>({...i})),uploading=false;
+      showDialog('공지 · 도움말 작성',`<form id="boardEditor"><div class="grid"><label>게시글 종류<select name="kind"><option value="NOTICE" ${article.kind==='NOTICE'?'selected':''}>공지</option><option value="HELP" ${article.kind==='HELP'?'selected':''}>도움말</option></select></label><label>공개 대상<select name="company_id"><option value="">전체 직원</option>${companies.map(c=>`<option value="${c.id}" ${c.id===article.company_id?'selected':''}>${esc(c.code)}</option>`).join('')}</select></label><label>상태<select name="status">${[['DRAFT','초안'],['PUBLISHED','게시'],['ARCHIVED','보관']].map(([v,l])=>`<option value="${v}" ${v===article.status?'selected':''}>${l}</option>`).join('')}</select></label><label>상단 고정<select name="pinned"><option value="0">사용 안 함</option><option value="1" ${article.pinned?'selected':''}>고정</option></select></label><label>표시 순서 (작은 값 우선)<input name="sort_order" type="number" min="0" max="9999" value="${article.sort_order}"></label></div><label>제목<input name="title" maxlength="200" value="${esc(article.title)}" placeholder="제목을 입력하세요"></label><label>본문<textarea name="body" maxlength="20000" rows="10" placeholder="직원에게 안내할 내용을 입력하세요">${esc(article.body)}</textarea></label><div class="boardImageDrop" tabindex="0"><label>이미지 추가 (파일당 5MB · 최대 5장)<input type="file" id="boardImageFiles" accept="image/png,image/jpeg,image/webp" multiple></label><p class="muted">이미지를 끌어 놓거나 본문에 스크린샷을 붙여넣을 수 있습니다. 첨부 이미지는 본문 아래에 표시됩니다.</p></div><div id="boardImageList"></div><p id="boardUploadStatus" role="status"></p><div class="formError" role="alert"></div><div class="actions"><button type="button" class="secondary" id="boardPreviewButton">미리보기</button><button type="submit">저장</button></div><div id="boardDraftPreview" hidden></div></form>`);
+      const form=document.getElementById('boardEditor'),input=document.getElementById('boardImageFiles'),imageList=document.getElementById('boardImageList'),drop=form.querySelector('.boardImageDrop');
+      function drawImages(){imageList.innerHTML=images.map((i,index)=>`<figure class="boardImageEditor"><img src="${esc(i.url)}" alt="첨부 이미지 ${index+1}"><div><label>이미지 설명<input data-image-caption="${i.id}" maxlength="200" value="${esc(i.caption)}"></label><div class="boardAdminActions"><button type="button" class="secondary" data-image-up="${i.id}" ${index===0?'disabled':''}>위로</button><button type="button" class="secondary" data-image-down="${i.id}" ${index===images.length-1?'disabled':''}>아래로</button><button type="button" class="secondary" data-image-remove="${i.id}">제외</button></div></div></figure>`).join('');}
+      imageList.oninput=event=>{if(event.target.dataset.imageCaption){const image=images.find(i=>i.id===event.target.dataset.imageCaption);if(image)image.caption=event.target.value;}};
+      imageList.onclick=event=>{const button=event.target.closest('button');if(!button||uploading)return;const id=button.dataset.imageRemove||button.dataset.imageUp||button.dataset.imageDown,index=images.findIndex(i=>i.id===id);if(index<0)return;form.dataset.dirty='true';if(button.dataset.imageRemove)images.splice(index,1);else {const other=button.dataset.imageUp?index-1:index+1;if(other>=0&&other<images.length)[images[index],images[other]]=[images[other],images[index]];}drawImages();};
+      async function upload(files){if(uploading)return;if(images.length+files.length>5){toast('이미지는 최대 5장까지 첨부할 수 있습니다.');return;}uploading=true;input.disabled=true;form.querySelector('button[type="submit"]').disabled=true;const status=document.getElementById('boardUploadStatus');try{for(const file of files){status.textContent='이미지를 업로드하고 있습니다.';const body=new FormData();body.append('file',file);body.append('expected_version',article.version);const r=await call(`/admin/content/articles/${article.id}/images`,{method:'POST',body});images.push(r.data);form.dataset.dirty='true';drawImages();}status.textContent='이미지 준비 완료. 저장하면 게시글에 반영됩니다.';}catch(error){status.textContent=error.message;}finally{uploading=false;input.disabled=false;input.value='';form.querySelector('button[type="submit"]').disabled=false;}}
+      input.onchange=()=>upload(Array.from(input.files));form.elements.body.addEventListener('paste',event=>{const files=Array.from(event.clipboardData?.items||[]).filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(files.length){event.preventDefault();upload(files);}});drop.ondragover=event=>event.preventDefault();drop.ondrop=event=>{event.preventDefault();upload(Array.from(event.dataTransfer.files));};
+      document.getElementById('boardPreviewButton').onclick=()=>{const preview=document.getElementById('boardDraftPreview');preview.hidden=false;preview.innerHTML=portalArticleMarkup({...article,kind:form.elements.kind.value,title:form.elements.title.value,body:form.elements.body.value,images,pinned:form.elements.pinned.value==='1'});};
+      form.onsubmit=event=>{event.preventDefault();if(uploading)return;submit(form,async()=>{const values=Object.fromEntries(new FormData(form));const payload={...values,company_id:values.company_id||null,pinned:values.pinned==='1',sort_order:Number(values.sort_order),expected_version:article.version,images:images.map(i=>({id:i.id,caption:i.caption}))};await call('/admin/content/articles/'+article.id,{method:'PATCH',body:payload});form.dataset.dirty='false';closeDialog();await load(currentPage);toast('게시글을 저장했습니다.');});};
+      drawImages();
+    }
+    await load();
   }
 
   async function render() {
@@ -1045,11 +1136,14 @@
         });
       const create = document.querySelector(".sidebarCreate");
       if (!portal && !me.roles.includes("support_agent")) create.hidden = true;
-      if (params.get("ticket")) await ticketDetail(params.get("ticket"));
+      if (portal && location.pathname.endsWith("/knowledge")) await knowledge();
+      else if (params.get("ticket")) await ticketDetail(params.get("ticket"));
       else if (location.pathname.endsWith("/assets")) await assets();
       else if (location.pathname.endsWith("/maintenance")) await maintenance();
       else if (location.pathname.endsWith("/asset-analysis")) await assetAnalysis();
       else if (location.pathname.endsWith("/organizations")) await people();
+      else if (location.pathname.endsWith("/directory")) await directoryManagement();
+      else if (location.pathname.endsWith("/account")) await myDirectoryAccount();
       else if (location.pathname.endsWith("/settings")) await adminSettings();
       else if (
         location.pathname.endsWith("/tickets") ||
@@ -1062,8 +1156,11 @@
       main.innerHTML = errorPanel(error);
     }
   }
+  dialog.addEventListener('close',()=>{dialog.querySelectorAll('input[type="password"],#temporaryNasPassword').forEach(field=>field.value='');});
   document.getElementById("refreshPage").onclick = render;
   render();
 })();
+
+
 
 

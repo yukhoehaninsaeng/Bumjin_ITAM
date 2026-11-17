@@ -379,3 +379,97 @@ class SystemConfiguration(models.Model):
     secrets = models.TextField(blank=True)
     version = models.PositiveIntegerField(default=1)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+
+class DirectoryLease(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee = models.ForeignKey(Employee, null=True, blank=True, on_delete=models.PROTECT)
+    uid = models.CharField(max_length=128)
+    directory_id = models.CharField(max_length=255, blank=True)
+    group = models.CharField(max_length=120)
+    starts_on = models.DateField()
+    expires_on = models.DateField(null=True, blank=True)
+    permanent = models.BooleanField(default=False)
+    enabled = models.BooleanField(default=True)
+    description = models.CharField(max_length=500, blank=True)
+    source = models.CharField(max_length=30, default='manual')
+    sync_state = models.CharField(max_length=16, default='pending')
+    error_code = models.CharField(max_length=80, blank=True)
+    last_checked = models.DateTimeField(null=True, blank=True)
+    observed_member = models.BooleanField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['uid','group'], name='directory_lease_identity')]
+
+
+class AccessNotice(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT)
+    lease = models.ForeignKey(DirectoryLease, null=True, blank=True, on_delete=models.PROTECT)
+    kind = models.CharField(max_length=24)
+    event_key = models.CharField(max_length=128, unique=True)
+    payload = models.JSONField(default=dict)
+    state = models.CharField(max_length=16, default='pending')
+    attempts = models.PositiveIntegerField(default=0)
+    available_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now)
+    error_code = models.CharField(max_length=80, blank=True)
+
+
+class VpnApproval(models.Model):
+    document_id = models.CharField(max_length=120, primary_key=True)
+    document_number = models.CharField(max_length=120, blank=True)
+    drafter = models.CharField(max_length=128, blank=True)
+    account_hint = models.CharField(max_length=128, blank=True)
+    starts_on = models.DateField(null=True, blank=True)
+    expires_on = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=24, default='review')
+    reason = models.CharField(max_length=200, blank=True)
+    employee = models.ForeignKey(Employee, null=True, blank=True, on_delete=models.PROTECT)
+    version = models.PositiveIntegerField(default=1)
+    imported_at = models.DateTimeField(default=timezone.now)
+    metadata = models.JSONField(default=dict)
+
+
+class PasswordRecovery(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT)
+    token_hash = models.CharField(max_length=64, unique=True)
+    address = models.EmailField()
+    directory_id = models.CharField(max_length=255)
+    uid = models.CharField(max_length=128)
+    credential_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+
+
+class PortalArticle(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=10, choices=[('NOTICE','공지'),('HELP','도움말')])
+    title = models.CharField(max_length=200, blank=True)
+    body = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=[('DRAFT','초안'),('PUBLISHED','게시'),('ARCHIVED','보관')], default='DRAFT')
+    company = models.ForeignKey(Company, null=True, blank=True, on_delete=models.PROTECT)
+    pinned = models.BooleanField(default=False)
+    sort_order = models.PositiveIntegerField(default=0)
+    version = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+    published_at = models.DateTimeField(null=True, blank=True)
+    class Meta:
+        indexes = [models.Index(fields=['status','kind','company'],name='portal_article_visible')]
+
+
+class PortalArticleImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    article = models.ForeignKey(PortalArticle, on_delete=models.CASCADE, related_name='images')
+    file = models.FileField(upload_to='portal-articles/%Y/%m/')
+    caption = models.CharField(max_length=200, blank=True)
+    position = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
